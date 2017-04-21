@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -7,11 +8,17 @@ public class TestLogger : MonoBehaviour
 	public bool enable;
 	public LogType type;
 
-	public List<string> allLogs;
+	public GUIStyle s;
 
+	public Texture2D t;
+	public Texture2D t2d;
+
+	public GUIContent content;
 	// Use this for initialization
 	void Start()
 	{
+		Debug.logger.logEnabled = true;
+		Debug.logger.filterLogType = LogType.Log;
 	}
 
 	// Update is called once per frame
@@ -19,13 +26,13 @@ public class TestLogger : MonoBehaviour
 	{
 		LogConsole.LogEnabled = enable;
 		LogConsole.LogLevel = type;
-
-		LogConsole.GetAllLog(ref allLogs);
 	}
 
 	private void OnGUI()
 	{
-		if(GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
+		string tb = "ToolbarButton";
+		s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryError");
+		if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 		{
 			LogConsole.Log("Test Log");
 			LogConsole.Log("MyTag", "Test Log With Tag");
@@ -51,6 +58,8 @@ public class TestLogger : MonoBehaviour
 			{
 				LogConsole.LogException(ex, this);
 			}
+
+			Debug.LogAssertion("Unity assertion");
 
 			LogConsole.Assert(false, "Test if this assert can be printed in console");
 		}

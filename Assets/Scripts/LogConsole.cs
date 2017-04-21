@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityObject = UnityEngine.Object;
 using UnityDebug = UnityEngine.Debug;
-using System.Text.RegularExpressions;
 
 /// <summary>
 /// (对应Unity5.6)
@@ -51,33 +48,18 @@ public sealed class LogConsole
 		}
 	}
 
-	public static bool SendToUnityEditorConsole
+	public static bool RaiseAssertException
 	{
 		get
 		{
-			return Instance.sendToUnityEditorConsole;
+			return UnityEngine.Assertions.Assert.raiseExceptions;
 		}
 		set
 		{
-			Instance.sendToUnityEditorConsole = value;
+			UnityEngine.Assertions.Assert.raiseExceptions = value;
 		}
 	}
 
-
-	/// <summary>
-	/// 注意，修改日志队列长度上限会导致当前已经保存在队列中的日志被清空
-	/// </summary>
-	public static int LogQueueLimit
-	{
-		get
-		{
-			return Instance.logQueueLimit;
-		}
-		set
-		{
-			Instance.ChangeLogQueueLimit(value);
-		}
-	}
 
 	public static void Assert(bool condition)
 	{
@@ -194,26 +176,11 @@ public sealed class LogConsole
 		_LogException(exception, context);
 	}
 
-	public static void GetAllLog(ref List<string> output)
-	{
-		if(Instance != null)
-		{
-			output.Clear();
-			foreach (LogContent log in Instance.logQueue)
-			{
-				output.Add(log.ToString());
-			}
-		}
-	}
-
 	#endregion
 
 	private static void _Assert(bool condition, string message)
 	{
-		if (!condition)
-		{
-			throw new AssertionException(message, null);
-		}
+		UnityEngine.Assertions.Assert.IsTrue(condition, message);
 	}
 
 	private static void _Log(LogType logType, string tag, string message, UnityObject context)
@@ -222,13 +189,11 @@ public sealed class LogConsole
 		{
 			if (string.IsNullOrEmpty(tag))
 			{
-				long id = Instance.RecordLog(logType, string.Empty, context);
-				Instance.logger.Log(logType, (object)(string.Format("{0}[#{1}]", message, id)), context);
+				Instance.logger.Log(logType, (object)message, context);
 			}
 			else
 			{
-				long id = Instance.RecordLog(logType, tag, context);
-				Instance.logger.Log(logType, tag, string.Format("{0}[#{1}]", message, id), context);
+				Instance.logger.Log(logType, tag, message, context);
 			}
 		}
 	}
@@ -237,8 +202,7 @@ public sealed class LogConsole
 	{
 		if (Instance != null)
 		{
-			long id = Instance.RecordLog(logType, string.Empty, context);
-			Instance.logger.LogFormat(LogType.Log, context, string.Format("{0}[#{1}]", format, id), args);
+			Instance.logger.LogFormat(LogType.Log, context, format, args);
 		}
 	}
 
@@ -246,7 +210,6 @@ public sealed class LogConsole
 	{
 		if (Instance != null)
 		{
-			Instance.RecordLog(LogType.Exception, string.Empty, exception.Message, exception.StackTrace, context);
 			Instance.logger.LogException(exception, context);
 		}
 	}
@@ -264,30 +227,6 @@ public sealed class LogConsole
 		}
 	}
 
-	private class LogContent
-	{
-		public LogType logType;
-		public string logTag;
-		public string logContent;
-		public string stackTrace;
-		public UnityObject context;
-		public long uniqueID;
-
-		public string ToString()
-		{
-			return string.Format("{0}-{1}:{2}[#{3}]{4}{5}", logType, logTag, logContent, uniqueID, Environment.NewLine, stackTrace);
-		}
-	}
-
-	private bool sendToUnityEditorConsole = true;
-
-	private int logQueueLimit = 3000;
-
-	private Queue<LogContent> logQueue = null;
-	private Dictionary<long, LogContent> logTable = null;
-	private Dictionary<LogType, Dictionary<string, LogContent>> typeTagContentTable = null;
-	private Dictionary<string, Dictionary<LogType, LogContent>> tagTypeContentTable = null;
-
 	// 为了能够区别于Debug，单独设置仅限于使用LogConsole时才生效的日志过滤和日志开关，还是需要单独定义一个Logger的
 	// 但是这个Logger在接收到日志的时候一定会转发给Debug，为了能够获取到日志的堆栈信息
 	private Logger logger = null;
@@ -295,75 +234,21 @@ public sealed class LogConsole
 	private LogConsole()
 	{
 		Init();
-		Application.logMessageReceived += OnLogMessageReceived;
+		//Application.logMessageReceived += OnLogMessageReceived;
 	}
 
 	~LogConsole()
 	{
-		Application.logMessageReceived -= OnLogMessageReceived;
+		//Application.logMessageReceived -= OnLogMessageReceived;
 	}
 
 	void Init()
 	{
 		logger = new Logger(new LogConsoleLoggerHandler());
-		logQueue = new Queue<LogContent>(logQueueLimit);
-		logTable = new Dictionary<long, LogContent>();
-		typeTagContentTable = new Dictionary<LogType, Dictionary<string, LogContent>>();
-		tagTypeContentTable = new Dictionary<string, Dictionary<LogType, LogContent>>();
 	}
 
-	void ChangeLogQueueLimit(int value)
-	{
-		logQueue.Clear();
-		logTable.Clear();
-		logQueueLimit = value;
-		logQueue = new Queue<LogContent>(logQueueLimit);
-		typeTagContentTable.Clear();
-		tagTypeContentTable.Clear();
-	}
-
-	long RecordLog(LogType logType, string tag, UnityObject context)
-	{
-		return RecordLog(logType, tag, null, null, context);
-	}
-
-	long RecordLog(LogType logType, string tag, string message, string stackTrace, UnityObject context)
-	{
-		long uniqueID = UniqueIDGenerator.GetID();
-		LogContent log = new LogContent() { logType = logType, logTag = tag, context = context, uniqueID = uniqueID };
-		if (logQueue.Count >= logQueueLimit)
-		{
-			LogContent oldLog = logQueue.Dequeue();
-			logTable.Remove(oldLog.uniqueID);
-			CollectionUtil.RemoveFromTable(oldLog.logType, oldLog.logTag, typeTagContentTable);
-			CollectionUtil.RemoveFromTable(oldLog.logTag, oldLog.logType, tagTypeContentTable);
-		}
-		logQueue.Enqueue(log);
-		logTable.Add(log.uniqueID, log);
-		CollectionUtil.AddIntoTable(log.logType, log.logTag, typeTagContentTable);
-		CollectionUtil.AddIntoTable(log.logTag, log.logType, tagTypeContentTable);
-		if (message != null)
-			log.logContent = message;
-		if (stackTrace != null)
-			log.stackTrace = stackTrace;
-		return uniqueID;
-	}
-
-	// [#1234567890000]
-	const string idPattern = "\\[#([0-9]+)\\]";
 	void OnLogMessageReceived(string message, string stackTrace, LogType logType)
 	{
-		Match match = Regex.Match(message, idPattern);
-		if(match.Success)
-		{
-			string idStr = match.Groups[1].Value;
-			long id = 0L;
-			LogContent log = null;
-			if (long.TryParse(idStr, out id) && logTable.TryGetValue(id, out log))
-			{
-				log.logContent = message.Replace(match.Groups[0].Value, string.Empty);
-				log.stackTrace = stackTrace;
-			}
-		}
+		// @TODO: 如果是部署环境运行，那么需要将日志转发到自制的控制台UI上
 	}
 }

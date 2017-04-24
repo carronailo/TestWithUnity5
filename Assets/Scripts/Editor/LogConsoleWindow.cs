@@ -81,6 +81,7 @@ public class LogConsoleWindow : EditorWindow
 		public int charNumber;
 		public string stackLabel;
 		public string stackLabel2;
+		public bool showSource;
 		public List<string> sourceCode;
 	}
 
@@ -165,6 +166,8 @@ public class LogConsoleWindow : EditorWindow
 		public static GUIStyle MessageStyle;
 		public static GUIStyle MessageButtonStyle;
 		public static GUIStyle MessageButtonBoldStyle;
+		public static GUIStyle CodeFoldoutStyle;
+		public static GUIStyle CodeButtonStyle;
 		public static GUIStyle StatusError;
 		public static GUIStyle StatusWarn;
 		public static GUIStyle StatusLog;
@@ -213,6 +216,8 @@ public class LogConsoleWindow : EditorWindow
 				MessageStyle = "CN Message";
 				MessageButtonStyle = "ControlLabel";
 				MessageButtonBoldStyle = "ControlLabel";
+				CodeFoldoutStyle = "Foldout";
+				CodeButtonStyle = "ControlLabel";
 				StatusError = "CN StatusError";
 				StatusWarn = "CN StatusWarn";
 				StatusLog = "CN StatusInfo";
@@ -260,6 +265,8 @@ public class LogConsoleWindow : EditorWindow
 				MessageButtonBoldStyle = new GUIStyle(MessageButtonBoldStyle);
 				MessageButtonBoldStyle.fontStyle = FontStyle.Bold;
 				MessageButtonBoldStyle.normal.textColor = Color.white;
+				CodeButtonStyle = new GUIStyle(CodeButtonStyle);
+				CodeButtonStyle.normal.textColor = new Color(166f / 255f, 166f / 255f, 1f, 1f);
 
 				splitterTex = new Texture2D(2, 2);
 				splitterTex.hideFlags = HideFlags.DontSaveInEditor;
@@ -412,6 +419,7 @@ public class LogConsoleWindow : EditorWindow
 	private float logAreaHeightRatio = 0f;
 	private Rect logAreaRect = Rect.zero;
 	private Vector2 logEntriesScrollPosition = Vector2.zero;
+	private Rect stackAreaRect = Rect.zero;
 	private Vector2 stackTraceScrollPosition = Vector2.zero;
 	private bool resizingLogArea = false;
 
@@ -699,9 +707,11 @@ public class LogConsoleWindow : EditorWindow
 	private void DrawStackTrace()
 	{
 		Event current = Event.current;
+
+		stackAreaRect = EditorGUILayout.BeginVertical();
 		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition, StyleConstants.Box);
 		{
-			EditorGUILayout.Space();
+			GUILayout.Space(3f);
 			// 显示在StackTrace之前的日志内容
 			ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedEntry.text : string.Empty;
 			float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
@@ -713,23 +723,74 @@ public class LogConsoleWindow : EditorWindow
 			}
 			EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
 				GUILayout.ExpandWidth(true), GUILayout.Height(minHeight)/*GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight)*/);
+			float stackEntryStartY = minHeight + 3f;
+			Rect currentDisplayRect = new Rect(0f, stackEntryStartY, stackAreaRect.width, 1f);
 			if (currentSelectedEntry != null && currentSelectedEntry.stackEntries.Count > 0)
 			{
 				for (int i = 0; i < currentSelectedEntry.stackEntries.Count; ++i)
 				{
 					StackEntry stackEntry = currentSelectedEntry.stackEntries[i];
+					// @TODO: 堆栈里每隔一个元素背景的颜色需要变化一下
+					// @TODO: 优化GUIContent的创建，使用池
+					float stackLabelHeight = StyleConstants.MessageButtonBoldStyle.CalcHeight(new GUIContent(stackEntry.stackLabel), position.width);
 					if (GUILayout.Button(stackEntry.stackLabel, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
 					{
 						OpenEditorToStackEntry(stackEntry, -1);
 					}
-					if (GUILayout.Button(stackEntry.stackLabel2, StyleConstants.MessageButtonStyle) && Event.current.button == 0)
+					float stackLabel2Height = StyleConstants.CodeFoldoutStyle.CalcHeight(new GUIContent(stackEntry.stackLabel2), position.width);
+					stackEntry.showSource = EditorGUILayout.Foldout(stackEntry.showSource, stackEntry.stackLabel2, true, StyleConstants.CodeFoldoutStyle);
+					float sourceCodeHeight = 0f;
+					if (stackEntry.showSource)
 					{
-						OpenEditorToStackEntry(stackEntry, -1);
+						sourceCodeHeight = DrawSourceCode(stackEntry);
 					}
+					currentDisplayRect.height = stackLabelHeight + stackLabel2Height + sourceCodeHeight;
+					//if(current.type == EventType.Repaint)
+					//{
+					//	// 绘制背景（奇偶数的日志背景颜色不同）
+					//	GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.EvenBackground : StyleConstants.OddBackground;
+					//	backgroundStyle.Draw(currentDisplayRect, false, false, false, false);
+					//}
 				}
 			}
 		}
 		EditorGUILayout.EndScrollView();
+		EditorGUILayout.EndVertical();
+	}
+
+	private float DrawSourceCode(StackEntry stackEntry)
+	{
+		if (!string.IsNullOrEmpty(stackEntry.fileName) && stackEntry.sourceCode == null)
+		{
+			stackEntry.sourceCode = new List<string>();
+			ReadSourceCode(stackEntry.fileName, stackEntry.lineNumber, ref stackEntry.sourceCode);
+		}
+		if (stackEntry.sourceCode != null && stackEntry.sourceCode.Count >= 5)
+		{
+			for (int j = 0; j < stackEntry.sourceCode.Count; j++)
+			{
+				string code = stackEntry.sourceCode[j];
+				if (string.IsNullOrEmpty(code))
+					continue;
+				if (j == stackEntry.sourceCode.Count / 2)
+				{
+					if (GUILayout.Button(code, StyleConstants.CodeButtonStyle))
+					{
+						OpenEditorToStackEntry(stackEntry, -1);
+					}
+				}
+				else
+				{
+					if (GUILayout.Button(code, StyleConstants.MessageButtonStyle))
+					{
+						OpenEditorToStackEntry(stackEntry, stackEntry.lineNumber + j - stackEntry.sourceCode.Count / 2);
+					}
+				}
+			}
+		}
+
+		// @TODO: 返回显示代码所用的UI空间的高度
+		return 0f;
 	}
 
 	private void DrawSplitter(bool vertical = false)
@@ -923,15 +984,15 @@ public class LogConsoleWindow : EditorWindow
 			entry.stackEntries = new List<StackEntry>();
 		else
 			entry.stackEntries.Clear();
-		if(HasMode(entry.mode, EMode.ScriptCompileWarning | EMode.ScriptCompileError))
+		if (HasMode(entry.mode, EMode.ScriptCompileWarning | EMode.ScriptCompileError))
 		{
 			string[] temp = entry.whole.Split(':');
-			if(temp.Length >= 3)
+			if (temp.Length >= 3)
 			{
 
 				entry.text = string.Format("<color={0}>[{1}]</color> {2}", (entry.type == LogType.Warning) ? "yellow" : "#dd2222ff", temp[1].Trim(), temp[2].Trim());
 				temp = temp[0].Split(new char[] { '(', ',', ')' });
-				if(temp.Length >= 3)
+				if (temp.Length >= 3)
 				{
 					string file = temp[0];
 					int lineNum = 0;
@@ -943,10 +1004,10 @@ public class LogConsoleWindow : EditorWindow
 					stack.lineNumber = lineNum;
 					stack.charNumber = charNum;
 					stack.stackLabel = "Compile " + entry.type.ToString();
-					if(charNum > 0)
-						stack.stackLabel2 = string.Format("    {0}: line {1} column {2}", file.Replace("Assets/", ""), lineNum, charNum);
+					if (charNum > 0)
+						stack.stackLabel2 = string.Format("  {0}: line {1} column {2}", file.Replace("Assets/", ""), lineNum, charNum);
 					else
-						stack.stackLabel2 = string.Format("    {0}: line {1}", file.Replace("Assets/", ""), lineNum);
+						stack.stackLabel2 = string.Format("  {0}: line {1}", file.Replace("Assets/", ""), lineNum);
 					entry.stackEntries.Add(stack);
 				}
 			}
@@ -955,11 +1016,11 @@ public class LogConsoleWindow : EditorWindow
 				entry.text = entry.whole;
 			}
 		}
-		else if(HasMode(entry.mode, EMode.AssetImportWarning | EMode.AssetImportError))
+		else if (HasMode(entry.mode, EMode.AssetImportWarning | EMode.AssetImportError))
 		{
 			entry.text = entry.whole;
 		}
-		else if(HasMode(entry.mode, EMode.ScriptingLog | EMode.ScriptingWarning | EMode.ScriptingException))
+		else if (HasMode(entry.mode, EMode.ScriptingLog | EMode.ScriptingWarning | EMode.ScriptingException))
 		{
 			entry.text = entry.whole;
 		}
@@ -1155,5 +1216,34 @@ public class LogConsoleWindow : EditorWindow
 		}
 	}
 
-
+	private void ReadSourceCode(string fileName, int lineNumber, ref List<string> output)
+	{
+		try
+		{
+			if (File.Exists(fileName))
+			{
+				using (StreamReader streamReader = new StreamReader(fileName))
+				{
+					// 万一lineNum是0或者1或者2，那么需要补足前几行，确保正对的那行代码在列表里是出于中间的位置
+					if (lineNumber < 3)
+						output.Add(string.Empty);
+					if (lineNumber < 2)
+						output.Add(string.Empty);
+					if (lineNumber < 1)
+						output.Add(string.Empty);
+					int i = 0;
+					for (; i < lineNumber + 2; i++)
+					{
+						string text = streamReader.ReadLine();
+						if (i >= lineNumber - 3)
+							output.Add(string.Format("{0}:\t{1}", (i + 1), text.Replace("\t", "  ")));
+					}
+					// 万一源文件里行数对应的代码之后的多余代码行不够，那么就要补足，确保列表中一同5行代码，切代码行对应的代码是正中间那一行
+					while (output.Count < 5)
+						output.Add(string.Empty);
+				}
+			}
+		}
+		catch { }
+	}
 }

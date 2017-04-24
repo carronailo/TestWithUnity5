@@ -34,7 +34,7 @@ namespace Test
 		private void OnGUI()
 		{
 			string tb = "ToolbarButton";
-			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("ControlLabel");
+			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryBackEven");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
 				LogConsole.Log("Test Log");

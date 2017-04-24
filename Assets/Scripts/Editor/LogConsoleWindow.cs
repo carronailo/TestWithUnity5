@@ -3,6 +3,8 @@ using UnityEditor;
 using System;
 using System.Reflection;
 using System.Collections.Generic;
+using System.IO;
+using FlyingWorm;
 
 public class LogConsoleWindow : EditorWindow
 {
@@ -10,28 +12,28 @@ public class LogConsoleWindow : EditorWindow
 	[Flags]
 	private enum EMode
 	{
-		Error = 1,											// bit 1
-		Assert = 2,											// bit 2
-		Log = 4,											// bit 3
-		// ?? = 8
-		Fatal = 16,											// bit 5
-		DontPreprocessCondition = 32,						// bit 6
-		AssetImportError = 64,								// bit 7
-		AssetImportWarning = 128,							// bit 8
-		ScriptingError = 256,								// bit 9
-		ScriptingWarning = 512,								// bit 10
-		ScriptingLog = 1024,								// bit 11
-		ScriptCompileError = 2048,							// bit 12
-		ScriptCompileWarning = 4096,						// bit 13
-		StickyError = 8192,									// bit 14
-		MayIgnoreLineNumber = 16384,						// bit 15
-		ReportBug = 32768,									// bit 16
-		DisplayPreviousErrorInStatusBar = 65536,			// bit 17
-		ScriptingException = 131072,						// bit 18
-		DontExtractStacktrace = 262144,						// bit 19
-		ShouldClearOnPlay = 524288,							// bit 20
-		GraphCompileError = 1048576,						// bit 21
-		ScriptingAssertion = 2097152						// bit 22
+		Error = 1,                                          // bit 1
+		Assert = 2,                                         // bit 2
+		Log = 4,                                            // bit 3
+															// ?? = 8
+		Fatal = 16,                                         // bit 5
+		DontPreprocessCondition = 32,                       // bit 6
+		AssetImportError = 64,                              // bit 7
+		AssetImportWarning = 128,                           // bit 8
+		ScriptingError = 256,                               // bit 9
+		ScriptingWarning = 512,                             // bit 10
+		ScriptingLog = 1024,                                // bit 11
+		ScriptCompileError = 2048,                          // bit 12
+		ScriptCompileWarning = 4096,                        // bit 13
+		StickyError = 8192,                                 // bit 14
+		MayIgnoreLineNumber = 16384,                        // bit 15
+		ReportBug = 32768,                                  // bit 16
+		DisplayPreviousErrorInStatusBar = 65536,            // bit 17
+		ScriptingException = 131072,                        // bit 18
+		DontExtractStacktrace = 262144,                     // bit 19
+		ShouldClearOnPlay = 524288,                         // bit 20
+		GraphCompileError = 1048576,                        // bit 21
+		ScriptingAssertion = 2097152                        // bit 22
 	}
 
 	// Unity Internal Console Flags
@@ -50,21 +52,36 @@ public class LogConsoleWindow : EditorWindow
 		LogLevelError = 512
 	}
 
-	[Serializable]
 	private class LogConsoleEntry
 	{
 		public LogType type;
-		public string text;
-		public string stackTrace;
+		public string fistTwoLines;
+		public string whole;
 		public string file;
 		public int line;
 		public int mode;
-		public int instanceID = 0;
+		public int instanceID;
+
+		public string text;
+		public List<StackEntry> stackEntries;
 
 		public override string ToString()
 		{
-			return string.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}", type, mode, file, line, instanceID, text, stackTrace);
+			return string.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}", type, mode, file, line, instanceID, fistTwoLines, whole);
 		}
+	}
+
+	public class StackEntry
+	{
+		public string fileName;
+		public string className;
+		public string methodName;
+		public string namespaceName;
+		public int lineNumber;
+		public int charNumber;
+		public string stackLabel;
+		public string stackLabel2;
+		public List<string> sourceCode;
 	}
 
 	private class UnityInternal
@@ -79,14 +96,14 @@ public class LogConsoleWindow : EditorWindow
 		public static MethodInfo clearEntriesMethod;          // (static)UnityEditorInternal.LogEntries.Clear
 		public static MethodInfo setConsoleFlagMethod;        // (static)UnityEditorInternal.LogEntries.SetConsoleFlag
 		public static MethodInfo getCountMethod;              // (static)UnityEditorInternal.LogEntries.GetCount
-		public static MethodInfo getCountsByTypeMethod;		  // (static)UnityEditorInternal.LogEntries.GetCountsByType
+		public static MethodInfo getCountsByTypeMethod;       // (static)UnityEditorInternal.LogEntries.GetCountsByType
 		public static MethodInfo getFirstTwoLinesMethod;      // (static)UnityEditorInternal.LogEntries.GetFirstTwoLinesEntryTextAndModeInternal
 		public static MethodInfo rowGotDoubleClickedMethod;   // (static)UnityEditorInternal.LogEntries.RowGotDoubleClicked
 		public static PropertyInfo logEntriesFlagField;       // (static)UnityEditorInternal.LogEntries.consoleFlags
 
 		public static Type logEntryType;      // UnityEditorInternal.LogEntry
 		public static object logEntry;
-		public static FieldInfo logEntryStackField;           // (instance)UnityEditorInternal.LogEntry.condition
+		public static FieldInfo logEntryConditionField;           // (instance)UnityEditorInternal.LogEntry.condition
 		public static FieldInfo logEntryFileField;            // (instance)UnityEditorInternal.LogEntry.file
 		public static FieldInfo logEntryLineField;            // (instance)UnityEditorInternal.LogEntry.line
 		public static FieldInfo logEntryModeField;            // (instance)UnityEditorInternal.LogEntry.mode
@@ -116,7 +133,7 @@ public class LogConsoleWindow : EditorWindow
 
 				logEntryType = typeof(EditorWindow).Assembly.GetType("UnityEditorInternal.LogEntry");
 				logEntry = Activator.CreateInstance(logEntryType);
-				logEntryStackField = logEntryType.GetField("condition", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+				logEntryConditionField = logEntryType.GetField("condition", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 				logEntryFileField = logEntryType.GetField("file", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 				logEntryLineField = logEntryType.GetField("line", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 				logEntryModeField = logEntryType.GetField("mode", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -146,6 +163,8 @@ public class LogConsoleWindow : EditorWindow
 		public static GUIStyle EvenBackground;
 		public static GUIStyle OddBackground;
 		public static GUIStyle MessageStyle;
+		public static GUIStyle MessageButtonStyle;
+		public static GUIStyle MessageButtonBoldStyle;
 		public static GUIStyle StatusError;
 		public static GUIStyle StatusWarn;
 		public static GUIStyle StatusLog;
@@ -192,6 +211,8 @@ public class LogConsoleWindow : EditorWindow
 				EvenBackground = "CN EntryBackEven";
 				OddBackground = "CN EntryBackodd";
 				MessageStyle = "CN Message";
+				MessageButtonStyle = "ControlLabel";
+				MessageButtonBoldStyle = "ControlLabel";
 				StatusError = "CN StatusError";
 				StatusWarn = "CN StatusWarn";
 				StatusLog = "CN StatusInfo";
@@ -234,11 +255,17 @@ public class LogConsoleWindow : EditorWindow
 				ExceptionStyle.border = new RectOffset(32, 0, 0, 0);
 				ExceptionStyle.overflow = new RectOffset(-4, -4, -4, -4);
 
+				MessageStyle = new GUIStyle(MessageStyle);
+				MessageStyle.richText = true;
+				MessageButtonBoldStyle = new GUIStyle(MessageButtonBoldStyle);
+				MessageButtonBoldStyle.fontStyle = FontStyle.Bold;
+				MessageButtonBoldStyle.normal.textColor = Color.white;
+
 				splitterTex = new Texture2D(2, 2);
 				splitterTex.hideFlags = HideFlags.DontSaveInEditor;
 				Color[] colorArray = new Color[4];
 				for (int i = 0; i < colorArray.Length; ++i)
-					colorArray[i] = new Color(0f, 0f, 0f);
+					colorArray[i] = new Color(0.15f, 0.15f, 0.15f);
 				splitterTex.SetPixels(colorArray);
 				splitterTex.Apply();
 			}
@@ -379,8 +406,14 @@ public class LogConsoleWindow : EditorWindow
 	private int assertionCount = 0;
 	private int exceptionCount = 0;
 
+	private float logAreaDefaultHeightRatio = 0.6f;
+	private float logAreaMinHeightRatio = 0.1f;
+	private float logAreaMaxHeightRatio = 0.8f;
+	private float logAreaHeightRatio = 0f;
+	private Rect logAreaRect = Rect.zero;
 	private Vector2 logEntriesScrollPosition = Vector2.zero;
 	private Vector2 stackTraceScrollPosition = Vector2.zero;
+	private bool resizingLogArea = false;
 
 	private List<LogConsoleEntry> currentEntries = null;
 	private List<LogConsoleEntry> currentDisplayEntries = null;
@@ -416,6 +449,7 @@ public class LogConsoleWindow : EditorWindow
 		DrawToolbar1();     // 提供原生Console窗口相关功能按钮的工具栏
 		DrawToolbar2();     // 提供扩展功能按钮的工具栏
 		DrawLogList();      // 日志内容显示区
+		DrawResizeArea();
 		//DrawSplitter();     // 日志内容显示区和堆栈显示区的分割线
 		DrawStackTrace();   // 堆栈显示区
 
@@ -436,7 +470,7 @@ public class LogConsoleWindow : EditorWindow
 			int unityConsoleFlags = (int)UnityInternal.logEntriesFlagField.GetValue(null, null);
 			if (CheckUnityConsoleToggleStatesChanged(unityConsoleFlags))
 				needRepaint = true;
-			if(CheckUnityConsoleDisplayToggleStateChanged(unityConsoleFlags))
+			if (CheckUnityConsoleDisplayToggleStateChanged(unityConsoleFlags))
 			{
 				ReFetchLogEntryDisplayList();
 				needRepaint = true;
@@ -484,6 +518,7 @@ public class LogConsoleWindow : EditorWindow
 		displayError = displayAssertion;
 		displayException = displayAssertion;
 
+		logAreaHeightRatio = logAreaDefaultHeightRatio;
 		// @TODO: 其他扩展功能的相关参数，从EditorPrefs里读取
 	}
 
@@ -509,7 +544,7 @@ public class LogConsoleWindow : EditorWindow
 		SetUnityConsoleFlag(EConsoleFlags.ClearOnPlay, clearOnPlay);
 		errorPause = GUILayout.Toggle(errorPause, ContentConstants.errorPauseGUIContent, StyleConstants.MiniButtonRight);
 		SetUnityConsoleFlag(EConsoleFlags.ErrorPause, errorPause);
-		if(isDevelopmentBuild)
+		if (isDevelopmentBuild)
 		{
 			GUILayout.FlexibleSpace();
 			stopForAssert = GUILayout.Toggle(stopForAssert, ContentConstants.stopForAssertGUIContent, StyleConstants.MiniButtonLeft);
@@ -575,15 +610,15 @@ public class LogConsoleWindow : EditorWindow
 	{
 		Event current = Event.current;
 
-		Rect areaRect = EditorGUILayout.BeginVertical();
-		float logDisplayAreaHeight = areaRect.height;
-		logEntriesScrollPosition = EditorGUILayout.BeginScrollView(logEntriesScrollPosition, StyleConstants.Box, GUILayout.Height(position.height * 3 / 5));
+		logAreaRect = EditorGUILayout.BeginVertical();
+		float logDisplayAreaHeight = logAreaRect.height;
+		logEntriesScrollPosition = EditorGUILayout.BeginScrollView(logEntriesScrollPosition, StyleConstants.Box, GUILayout.Height(position.height * logAreaHeightRatio));
 		float currentDisplayStartY = logEntriesScrollPosition.y;
 		float currentDisolayEndY = currentDisplayStartY + logDisplayAreaHeight;
 		// 为了显示的需要，下面显示日志条目的地方没有使用Layout，为了确保ScrollView能够正常工作，这里先将显示所有日志条目所需的空间预留出来
 		GUILayoutUtility.GetRect(1f, currentDisplayEntries.Count * defaultDisplayLogHeight);
 		int currentDisplayCount = 0;
-		Rect currentDisplayRect = new Rect(0f, 0f, areaRect.width, defaultDisplayLogHeight);
+		Rect currentDisplayRect = new Rect(0f, 0f, logAreaRect.width, defaultDisplayLogHeight);
 		//int controlID = GUIUtility.GetControlID(FocusType.Passive);
 		for (int i = 0; i < currentDisplayEntries.Count; ++i)
 		{
@@ -592,19 +627,21 @@ public class LogConsoleWindow : EditorWindow
 			if (y > currentDisolayEndY || y + defaultDisplayLogHeight < currentDisplayStartY)
 				continue;
 			currentDisplayRect.y = y;
-			if(current.type == EventType.MouseDown && current.button == 0 && currentDisplayRect.Contains(current.mousePosition))
+			if (current.type == EventType.MouseDown && current.button == 0 && currentDisplayRect.Contains(current.mousePosition))
 			{
 				// 检测到鼠标点击当前条目
-				if(current.clickCount == 2)
+				if (current.clickCount == 2)
 				{
 					// 是双击
 					UnityInternal.rowGotDoubleClickedMethod.Invoke(null, new object[] { i });
 				}
-				if(currentSelectedEntry != currentDisplayEntries[i])
+				if (currentSelectedEntry != currentDisplayEntries[i])
 				{
 					currentSelectedEntry = currentDisplayEntries[i];
 					selectChanged = true;
 				}
+				// 当前点击事件不能再继续向后传递，这很重要！
+				current.Use();
 			}
 			if (Event.current.type == EventType.Repaint)
 			{
@@ -613,7 +650,7 @@ public class LogConsoleWindow : EditorWindow
 				backgroundStyle.Draw(currentDisplayRect, false, false, currentSelectedEntry == currentDisplayEntries[i], false);
 				// 绘制日志内容
 				GUIContent content = GetGUIContentFormLogDisplayPool(currentDisplayCount);
-				content.text = currentDisplayEntries[i].text;
+				content.text = currentDisplayEntries[i].fistTwoLines;
 				//content.text = currentDisplayEntries[i].ToString();
 				GUIStyle textStyle = GetStyleForErrorMode(currentDisplayEntries[i].mode);
 				//textStyle.Draw(currentDisplayRect, content, controlID, currentSelectedEntry == currentDisplayEntries[i]);
@@ -622,7 +659,7 @@ public class LogConsoleWindow : EditorWindow
 			}
 			// @TODO: 当选中一个条目时，要确保条目被完全显示在滚动区域中
 			// 当选中一条条目时，如果条目有对应的context，需要在Hierachy窗口高亮对应物体
-			if(selectChanged && currentSelectedEntry != null)
+			if (selectChanged && currentSelectedEntry != null)
 			{
 				SetActiveEntry(currentSelectedEntry);
 			}
@@ -633,31 +670,65 @@ public class LogConsoleWindow : EditorWindow
 		//EditorGUILayout.LabelField(string.Format("Area[{0}], Scroll[{1}], LogCount[{2}], DisplayCount[{3}/{4}]", areaRect, logEntriesScrollPosition, currentDisplayEntries.Count, currentDisplayCount, currentDisplayLogGUIContentPool.Count));
 	}
 
+	private void DrawResizeArea()
+	{
+		Event current = Event.current;
+
+		Rect resizeRect = new Rect(0f, logAreaRect.y + logAreaRect.height - 2.5f, position.width, 5f);
+		EditorGUIUtility.AddCursorRect(resizeRect, MouseCursor.ResizeVertical);
+		if (current.type != EventType.Repaint)
+		{
+			if (current.type == EventType.MouseDown && !resizingLogArea)
+			{
+				if (resizeRect.Contains(current.mousePosition))
+					resizingLogArea = true;
+			}
+			else if (current.type == EventType.MouseDrag && resizingLogArea)
+			{
+				logAreaHeightRatio += Event.current.delta.y / position.height;
+				logAreaHeightRatio = Mathf.Min(logAreaMaxHeightRatio, Mathf.Max(logAreaMinHeightRatio, logAreaHeightRatio));
+				needRepaint = true;
+			}
+			else if (current.type == EventType.MouseUp && resizingLogArea)
+			{
+				resizingLogArea = false;
+			}
+		}
+	}
+
 	private void DrawStackTrace()
 	{
-		// 日志详情内容按照不同日志类型可以划分为几个不同的模板：
-		// 编译错误和编译警告
-		// （ScriptCompileError，ScriptCompileWarning）
-		// 模板形式：[文件相对路径]([行号],[列号]): [错误/警告代码]: [具体错误/警告描述]
-		// Shader导入错误和导入警告
-		// （AssetImportError，AssetImportWarning）
-		// 模板形式：Shader ... in '[Shader路径]': [具体错误/警告描述] at line [行号] ...
-		// 模板形式：[可能多行的描述]\n([最后一行为Shader文件路径])
-		// 其他杂项
-		// 模板形式：没有固定样式，比如换行符不一致的警告，自动升级代码的通知，Unity内置消息弃用的警告等
+		Event current = Event.current;
 		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition, StyleConstants.Box);
-		ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedEntry.stackTrace : string.Empty;
-		float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
-		if(selectChanged)
 		{
-			// 当选中的条目发生变化的时候，要将当前的选择状态取消掉
-			GUIUtility.hotControl = 0;
-			GUIUtility.keyboardControl = 0;
+			EditorGUILayout.Space();
+			// 显示在StackTrace之前的日志内容
+			ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedEntry.text : string.Empty;
+			float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
+			if (selectChanged)
+			{
+				// 当选中的条目发生变化的时候，要将当前的选择状态取消掉
+				GUIUtility.hotControl = 0;
+				GUIUtility.keyboardControl = 0;
+			}
+			EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
+				GUILayout.ExpandWidth(true), GUILayout.Height(minHeight)/*GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight)*/);
+			if (currentSelectedEntry != null && currentSelectedEntry.stackEntries.Count > 0)
+			{
+				for (int i = 0; i < currentSelectedEntry.stackEntries.Count; ++i)
+				{
+					StackEntry stackEntry = currentSelectedEntry.stackEntries[i];
+					if (GUILayout.Button(stackEntry.stackLabel, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
+					{
+						OpenEditorToStackEntry(stackEntry, -1);
+					}
+					if (GUILayout.Button(stackEntry.stackLabel2, StyleConstants.MessageButtonStyle) && Event.current.button == 0)
+					{
+						OpenEditorToStackEntry(stackEntry, -1);
+					}
+				}
+			}
 		}
-		//EditorGUILayout.LabelField(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
-		//	GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight));
-		EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
-			GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight));
 		EditorGUILayout.EndScrollView();
 	}
 
@@ -689,16 +760,16 @@ public class LogConsoleWindow : EditorWindow
 		// 先获取到Unity编辑器原生Console窗口里各个复选按钮的状态位
 		int unityConsoleFlags = (int)UnityInternal.logEntriesFlagField.GetValue(null, null);
 		// 为了能够获取到完整的日志列表，需要先将Unity编辑器原生Console窗口的几个复选按钮的状态设置一下
-		SetUnityConsoleFlag(EConsoleFlags.Collapse, false);			// 取消Collapse
-		SetUnityConsoleFlag(EConsoleFlags.LogLevelLog, true);		// 显示普通日志
-		SetUnityConsoleFlag(EConsoleFlags.LogLevelWarning, true);	// 显示警告日志
+		SetUnityConsoleFlag(EConsoleFlags.Collapse, false);         // 取消Collapse
+		SetUnityConsoleFlag(EConsoleFlags.LogLevelLog, true);       // 显示普通日志
+		SetUnityConsoleFlag(EConsoleFlags.LogLevelWarning, true);   // 显示警告日志
 		SetUnityConsoleFlag(EConsoleFlags.LogLevelError, true);     // 显示错误日志
 
 		// 对比检查本地日志列表和编辑器Console窗口日志列表是否相同
 		int fillLogStartIndex = CheckLogEntriesChanged();
-		if(fillLogStartIndex >= 0)
+		if (fillLogStartIndex >= 0)
 		{
-			if(fillLogStartIndex == 0)
+			if (fillLogStartIndex == 0)
 				ClearAllLog();
 			FetchLogEntriesFromUnityConsole(fillLogStartIndex);
 			result = true;
@@ -760,10 +831,10 @@ public class LogConsoleWindow : EditorWindow
 					*/
 			}
 		}
-		else if(unityConsoleLogCount > currentLogEntriesCount)
+		else if (unityConsoleLogCount > currentLogEntriesCount)
 		{
 			// 编辑器Console窗口日志数量更多
-			if(currentLogEntriesCount == 0)
+			if (currentLogEntriesCount == 0)
 			{
 				// 如果本地记录的日志列表是空的，那么直接获取全部日志就行
 				return 0;
@@ -796,15 +867,15 @@ public class LogConsoleWindow : EditorWindow
 	private void FetchLogEntriesFromUnityConsole(int startIndex)
 	{
 		int unityConsoleLogCount = (int)UnityInternal.startGettingEntriesMethod.Invoke(null, null);
-		object[] parameter = new object[]{ 0, 0, "" };
-		for(int i = startIndex; i < unityConsoleLogCount; ++i)
+		object[] parameter = new object[] { 0, 0, "" };
+		for (int i = startIndex; i < unityConsoleLogCount; ++i)
 		{
 			parameter[0] = i;
 			UnityInternal.getFirstTwoLinesMethod.Invoke(null, parameter);
 			string firstTwoLines = (string)parameter[2];
-			if((bool)UnityInternal.getEntryMethod.Invoke(null, new object[] { i, UnityInternal.logEntry }))
+			if ((bool)UnityInternal.getEntryMethod.Invoke(null, new object[] { i, UnityInternal.logEntry }))
 			{
-				string stackTrace = (string)UnityInternal.logEntryStackField.GetValue(UnityInternal.logEntry);
+				string wholeText = (string)UnityInternal.logEntryConditionField.GetValue(UnityInternal.logEntry);
 				string file = (string)UnityInternal.logEntryFileField.GetValue(UnityInternal.logEntry);
 				int line = (int)UnityInternal.logEntryLineField.GetValue(UnityInternal.logEntry);
 				int mode = (int)UnityInternal.logEntryModeField.GetValue(UnityInternal.logEntry);
@@ -814,21 +885,93 @@ public class LogConsoleWindow : EditorWindow
 				//int isWorldPlaying = (int)UnityInternal.logEntryIsWorldPlayingField.GetValue(UnityInternal.logEntry);
 				LogConsoleEntry entry = new LogConsoleEntry
 				{
-					text = firstTwoLines, stackTrace = stackTrace, file = file, line = line, mode = mode, instanceID = instanceID,
+					fistTwoLines = firstTwoLines,
+					whole = wholeText,
+					file = file,
+					line = line,
+					mode = mode,
+					instanceID = instanceID,
 				};
 				entry.type = GetLogTypeForErrorMode(mode);
 				currentEntries.Add(entry);
 				if (ShouldDisplayLogEntry(mode))
 					currentDisplayEntries.Add(entry);
 				AccumulateLogCount(entry.type, 1);
+
+				PostProcessLogEntry(entry);
 			}
 		}
 		UnityInternal.endGettingEntriesMethod.Invoke(null, null);
 	}
 
+	private void PostProcessLogEntry(LogConsoleEntry entry)
+	{
+		// 日志详情内容按照不同日志类型可以划分为几个不同的模板：
+		// 编译错误和编译警告
+		// （ScriptCompileError，ScriptCompileWarning）
+		// 模板形式：[文件相对路径]([行号],[列号]): [错误/警告代码]: [具体错误/警告描述]
+		// Shader导入错误和导入警告
+		// （AssetImportError，AssetImportWarning）
+		// 模板形式：Shader ... in '[Shader路径]': [具体错误/警告描述] at line [行号] ...
+		// 模板形式：[可能多行的描述]\n([最后一行为Shader文件路径])
+		// Debug日志输出
+		// （ScriptingLog，ScriptingWarning，ScriptingError，ScriptingException）
+		// 模板形式：[可能多行的日志内容]\n[命名空间].[类名].[函数名]([函数参数类型列表])(at [文件路径]:[行号])\n...
+		// 其他杂项
+		// 模板形式：没有固定样式，比如换行符不一致的警告，自动升级代码的通知，Unity内置消息弃用的警告等
+		if (entry.stackEntries == null)
+			entry.stackEntries = new List<StackEntry>();
+		else
+			entry.stackEntries.Clear();
+		if(HasMode(entry.mode, EMode.ScriptCompileWarning | EMode.ScriptCompileError))
+		{
+			string[] temp = entry.whole.Split(':');
+			if(temp.Length >= 3)
+			{
+
+				entry.text = string.Format("<color={0}>[{1}]</color> {2}", (entry.type == LogType.Warning) ? "yellow" : "#dd2222ff", temp[1].Trim(), temp[2].Trim());
+				temp = temp[0].Split(new char[] { '(', ',', ')' });
+				if(temp.Length >= 3)
+				{
+					string file = temp[0];
+					int lineNum = 0;
+					int.TryParse(temp[1], out lineNum);
+					int charNum = 0;
+					int.TryParse(temp[2], out charNum);
+					StackEntry stack = new StackEntry();
+					stack.fileName = file;
+					stack.lineNumber = lineNum;
+					stack.charNumber = charNum;
+					stack.stackLabel = "Compile " + entry.type.ToString();
+					if(charNum > 0)
+						stack.stackLabel2 = string.Format("    {0}: line {1} column {2}", file.Replace("Assets/", ""), lineNum, charNum);
+					else
+						stack.stackLabel2 = string.Format("    {0}: line {1}", file.Replace("Assets/", ""), lineNum);
+					entry.stackEntries.Add(stack);
+				}
+			}
+			else
+			{
+				entry.text = entry.whole;
+			}
+		}
+		else if(HasMode(entry.mode, EMode.AssetImportWarning | EMode.AssetImportError))
+		{
+			entry.text = entry.whole;
+		}
+		else if(HasMode(entry.mode, EMode.ScriptingLog | EMode.ScriptingWarning | EMode.ScriptingException))
+		{
+			entry.text = entry.whole;
+		}
+		else
+		{
+			entry.text = entry.whole;
+		}
+	}
+
 	private GUIContent GetGUIContentFormLogDisplayPool(int index)
 	{
-		if(index < currentDisplayLogGUIContentPool.Count)
+		if (index < currentDisplayLogGUIContentPool.Count)
 			return currentDisplayLogGUIContentPool[index];
 		else
 		{
@@ -925,7 +1068,7 @@ public class LogConsoleWindow : EditorWindow
 	private void ReFetchLogEntryDisplayList()
 	{
 		currentDisplayEntries.Clear();
-		for(int i = 0; i < currentEntries.Count; ++i)
+		for (int i = 0; i < currentEntries.Count; ++i)
 		{
 			LogConsoleEntry entry = currentEntries[i];
 			if (ShouldDisplayLogEntry(entry.mode))
@@ -1002,4 +1145,15 @@ public class LogConsoleWindow : EditorWindow
 
 		return result;
 	}
+
+	private void OpenEditorToStackEntry(StackEntry stackEntry, int lineNum = -1)
+	{
+		UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath(stackEntry.fileName, typeof(TextAsset));
+		if (obj != null)
+		{
+			AssetDatabase.OpenAsset(obj, (lineNum != -1) ? lineNum : stackEntry.lineNumber);
+		}
+	}
+
+
 }

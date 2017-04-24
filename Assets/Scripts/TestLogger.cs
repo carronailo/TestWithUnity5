@@ -3,65 +3,70 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 
-public class TestLogger : MonoBehaviour
+namespace Test
 {
-	public bool enable;
-	public LogType type;
-
-	public GUIStyle s;
-
-	public Texture2D t;
-	public Texture2D t2d;
-
-	public GUIContent content;
-	// Use this for initialization
-	void Start()
+	public class TestLogger : MonoBehaviour
 	{
-		Debug.logger.logEnabled = true;
-		Debug.logger.filterLogType = LogType.Log;
-	}
+		public bool enable;
+		public LogType type;
 
-	// Update is called once per frame
-	void Update()
-	{
-		LogConsole.LogEnabled = enable;
-		LogConsole.LogLevel = type;
-	}
+		public GUIStyle s;
 
-	private void OnGUI()
-	{
-		string tb = "ToolbarButton";
-		s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryError");
-		if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
+		public Texture2D t;
+		public Texture2D t2d;
+
+		public GUIContent content;
+		// Use this for initialization
+		void Start()
 		{
-			LogConsole.Log("Test Log");
-			LogConsole.Log("MyTag", "Test Log With Tag");
-			LogConsole.Log("Test Log With Context", this);
-			LogConsole.Log("MyTag", "Test Log With Tag And Context", this);
-			LogConsole.LogFormat("Test Log {0} {1}({2},{3})", "With", "Format", 1, 2.9f);
-			LogConsole.LogFormat(this, "Test Log {0} {1}({2},{3})", "With", "Format And Context", 1, 2.9f);
-			LogConsole.LogWarning("Test Warning");
-			LogConsole.LogError("Test Error");
-			try
-			{
-				throw new System.Exception("Test Exception");
-			}
-			catch(System.Exception ex)
-			{
-				LogConsole.LogException(ex);
-			}
-			try
-			{
-				throw new System.Exception("Test Exception With Context");
-			}
-			catch (System.Exception ex)
-			{
-				LogConsole.LogException(ex, this);
-			}
+			t.anisoLevel = 1;
+			Debug.logger.logEnabled = true;
+			Debug.logger.filterLogType = LogType.Log;
+		}
 
-			Debug.LogAssertion("Unity assertion");
+		// Update is called once per frame
+		void Update()
+		{
+			LogConsole.LogEnabled = enable;
+			LogConsole.LogLevel = type;
+		}
 
-			LogConsole.Assert(false, "Test if this assert can be printed in console");
+		private void OnGUI()
+		{
+			string tb = "ToolbarButton";
+			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("ControlLabel");
+			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
+			{
+				LogConsole.Log("Test Log");
+				LogConsole.Log("MyTag", "Test Log With Tag");
+				LogConsole.Log("Test Log With Context", this);
+				LogConsole.Log("MyTag", "Test Log With Tag And Context", this);
+				LogConsole.LogFormat("Test Log {0} {1}({2},{3})", "With", "Format", 1, 2.9f);
+				LogConsole.LogFormat(this, "Test Log {0} {1}({2},{3})", "With", "Format And Context", 1, 2.9f);
+				LogConsole.LogWarning("Test Warning");
+				LogConsole.LogError("Test Error");
+				try
+				{
+					throw new System.Exception("Test Exception");
+				}
+				catch (System.Exception ex)
+				{
+					LogConsole.LogException(ex);
+				}
+				try
+				{
+					throw new System.Exception("Test Exception With Context");
+				}
+				catch (System.Exception ex)
+				{
+					LogConsole.LogException(ex, this);
+				}
+
+				Debug.LogAssertion("Unity assertion");
+
+				LogConsole.Assert(false, "Test if this assert can be printed in console");
+			}
 		}
 	}
 }
+

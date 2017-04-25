@@ -34,9 +34,11 @@ namespace Test
 		private void OnGUI()
 		{
 			string tb = "ToolbarButton";
-			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryBackEven");
+			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN Message");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
+				Debug.Log("Test Unity Log");
+				Assert.IsTrue(false);
 				LogConsole.Log("Test Log");
 				LogConsole.Log("MyTag", "Test Log With Tag");
 				LogConsole.Log("Test Log With Context", this);

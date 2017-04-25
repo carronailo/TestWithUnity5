@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.IO;
 using FlyingWorm;
+using System.Text.RegularExpressions;
+using System.Text;
 
 public class LogConsoleWindow : EditorWindow
 {
@@ -62,8 +64,8 @@ public class LogConsoleWindow : EditorWindow
 		public int mode;
 		public int instanceID;
 
-		public string text;
-		public List<StackEntry> stackEntries;
+		//public string text;
+		//public List<StackEntry> stackEntries;
 
 		public override string ToString()
 		{
@@ -260,8 +262,17 @@ public class LogConsoleWindow : EditorWindow
 				ExceptionStyle.border = new RectOffset(32, 0, 0, 0);
 				ExceptionStyle.overflow = new RectOffset(-4, -4, -4, -4);
 
+				EvenBackground = new GUIStyle(EvenBackground);
+				EvenBackground.margin = new RectOffset(0, 0, 0, 0);
+				EvenBackground.padding = new RectOffset(0, 0, 0, 0);
+				OddBackground = new GUIStyle(OddBackground);
+				OddBackground.margin = new RectOffset(0, 0, 0, 0);
+				OddBackground.padding = new RectOffset(0, 0, 0, 0);
+
 				MessageStyle = new GUIStyle(MessageStyle);
 				MessageStyle.richText = true;
+				MessageButtonStyle = new GUIStyle(MessageButtonStyle);
+				MessageButtonStyle.normal.textColor = Color.white;
 				MessageButtonBoldStyle = new GUIStyle(MessageButtonBoldStyle);
 				MessageButtonBoldStyle.fontStyle = FontStyle.Bold;
 				MessageButtonBoldStyle.normal.textColor = Color.white;
@@ -297,6 +308,7 @@ public class LogConsoleWindow : EditorWindow
 		public static GUIContent displayExceptionGUIContent = null;
 
 		public static GUIContent stackTraceGUIContent = null;
+		private static Queue<GUIContent> stackTraceItemGUIContentPool = null;
 
 		public static void Init()
 		{
@@ -318,6 +330,31 @@ public class LogConsoleWindow : EditorWindow
 				displayExceptionGUIContent = new GUIContent("0", "是否显示异常日志（紫色）的开关");
 
 				stackTraceGUIContent = new GUIContent("");
+				stackTraceItemGUIContentPool = new Queue<GUIContent>();
+				for (int i = 0; i < 16; ++i)
+				{
+					stackTraceItemGUIContentPool.Enqueue(new GUIContent(""));
+				}
+			}
+		}
+
+		public static GUIContent GetStackTraceItemGUIContentFromPool()
+		{
+			if (stackTraceItemGUIContentPool != null)
+			{
+				if (stackTraceItemGUIContentPool.Count > 0)
+					return stackTraceItemGUIContentPool.Dequeue();
+				else
+					return new GUIContent("");
+			}
+			return null;
+		}
+
+		public static void ReturnStackTraceItemGUIContent(GUIContent guiContent)
+		{
+			if (stackTraceItemGUIContentPool != null)
+			{
+				stackTraceItemGUIContentPool.Enqueue(guiContent);
 			}
 		}
 	}
@@ -426,6 +463,10 @@ public class LogConsoleWindow : EditorWindow
 	private List<LogConsoleEntry> currentEntries = null;
 	private List<LogConsoleEntry> currentDisplayEntries = null;
 	private LogConsoleEntry currentSelectedEntry = null;
+	private string currentSelectedDetail;
+	private StringBuilder detailBuilder = null;
+	private List<StackEntry> currentSelectedStackEntries = null;
+	private StackEntry currentDoubleClickStackEntry = null;
 	private bool selectChanged = false;
 
 	private List<GUIContent> currentDisplayLogGUIContentPool = null;
@@ -641,7 +682,10 @@ public class LogConsoleWindow : EditorWindow
 				if (current.clickCount == 2)
 				{
 					// 是双击
-					UnityInternal.rowGotDoubleClickedMethod.Invoke(null, new object[] { i });
+					if (currentDoubleClickStackEntry != null)
+						OpenEditorToStackEntry(currentDoubleClickStackEntry, -1);
+					else
+						UnityInternal.rowGotDoubleClickedMethod.Invoke(null, new object[] { i });
 				}
 				if (currentSelectedEntry != currentDisplayEntries[i])
 				{
@@ -670,6 +714,8 @@ public class LogConsoleWindow : EditorWindow
 			if (selectChanged && currentSelectedEntry != null)
 			{
 				SetActiveEntry(currentSelectedEntry);
+				ParseStackTraceFromLogEntry(currentSelectedEntry);
+				stackTraceScrollPosition = Vector2.zero;
 			}
 			++currentDisplayCount;
 		}
@@ -708,12 +754,11 @@ public class LogConsoleWindow : EditorWindow
 	{
 		Event current = Event.current;
 
-		stackAreaRect = EditorGUILayout.BeginVertical();
-		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition, StyleConstants.Box);
+		GUILayout.Space(1f);
+		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition);
 		{
-			GUILayout.Space(3f);
 			// 显示在StackTrace之前的日志内容
-			ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedEntry.text : string.Empty;
+			ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedDetail : string.Empty;
 			float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
 			if (selectChanged)
 			{
@@ -723,29 +768,44 @@ public class LogConsoleWindow : EditorWindow
 			}
 			EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
 				GUILayout.ExpandWidth(true), GUILayout.Height(minHeight)/*GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight)*/);
-			float stackEntryStartY = minHeight + 3f;
-			Rect currentDisplayRect = new Rect(0f, stackEntryStartY, stackAreaRect.width, 1f);
-			if (currentSelectedEntry != null && currentSelectedEntry.stackEntries.Count > 0)
+			if (currentSelectedEntry != null && currentSelectedStackEntries.Count > 0)
 			{
-				for (int i = 0; i < currentSelectedEntry.stackEntries.Count; ++i)
+				for (int i = 0; i < currentSelectedStackEntries.Count; ++i)
 				{
-					StackEntry stackEntry = currentSelectedEntry.stackEntries[i];
-					// @TODO: 堆栈里每隔一个元素背景的颜色需要变化一下
-					// @TODO: 优化GUIContent的创建，使用池
-					float stackLabelHeight = StyleConstants.MessageButtonBoldStyle.CalcHeight(new GUIContent(stackEntry.stackLabel), position.width);
-					if (GUILayout.Button(stackEntry.stackLabel, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
+					StackEntry stackEntry = currentSelectedStackEntries[i];
+					// 堆栈里每隔一个元素背景的颜色需要变化一下
+					GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.OddBackground : StyleConstants.EvenBackground;
+					EditorGUILayout.BeginVertical(backgroundStyle);
+					if (!string.IsNullOrEmpty(stackEntry.stackLabel2))
 					{
-						OpenEditorToStackEntry(stackEntry, -1);
+						GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+						if (stackLabelGUIContent != null)
+						{
+							stackLabelGUIContent.text = stackEntry.stackLabel;
+							if (GUILayout.Button(stackLabelGUIContent, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
+								OpenEditorToStackEntry(stackEntry, -1);
+						}
+						GUIContent stackLabel2GUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+						if (stackLabel2GUIContent != null)
+						{
+							stackLabel2GUIContent.text = stackEntry.stackLabel2;
+							stackEntry.showSource = EditorGUILayout.Foldout(stackEntry.showSource, stackLabel2GUIContent, true, StyleConstants.CodeFoldoutStyle);
+							if (stackEntry.showSource)
+								DrawSourceCode(stackEntry);
+						}
 					}
-					float stackLabel2Height = StyleConstants.CodeFoldoutStyle.CalcHeight(new GUIContent(stackEntry.stackLabel2), position.width);
-					stackEntry.showSource = EditorGUILayout.Foldout(stackEntry.showSource, stackEntry.stackLabel2, true, StyleConstants.CodeFoldoutStyle);
-					float sourceCodeHeight = 0f;
-					if (stackEntry.showSource)
+					else
 					{
-						sourceCodeHeight = DrawSourceCode(stackEntry);
+						GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+						if (stackLabelGUIContent != null)
+						{
+							stackLabelGUIContent.text = stackEntry.stackLabel;
+							GUILayout.Label(stackLabelGUIContent, StyleConstants.MessageButtonStyle);
+						}
 					}
-					currentDisplayRect.height = stackLabelHeight + stackLabel2Height + sourceCodeHeight;
-					//if(current.type == EventType.Repaint)
+					EditorGUILayout.EndVertical();
+
+					//if (current.type == EventType.Repaint)
 					//{
 					//	// 绘制背景（奇偶数的日志背景颜色不同）
 					//	GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.EvenBackground : StyleConstants.OddBackground;
@@ -755,10 +815,9 @@ public class LogConsoleWindow : EditorWindow
 			}
 		}
 		EditorGUILayout.EndScrollView();
-		EditorGUILayout.EndVertical();
 	}
 
-	private float DrawSourceCode(StackEntry stackEntry)
+	private void DrawSourceCode(StackEntry stackEntry)
 	{
 		if (!string.IsNullOrEmpty(stackEntry.fileName) && stackEntry.sourceCode == null)
 		{
@@ -775,22 +834,15 @@ public class LogConsoleWindow : EditorWindow
 				if (j == stackEntry.sourceCode.Count / 2)
 				{
 					if (GUILayout.Button(code, StyleConstants.CodeButtonStyle))
-					{
 						OpenEditorToStackEntry(stackEntry, -1);
-					}
 				}
 				else
 				{
 					if (GUILayout.Button(code, StyleConstants.MessageButtonStyle))
-					{
 						OpenEditorToStackEntry(stackEntry, stackEntry.lineNumber + j - stackEntry.sourceCode.Count / 2);
-					}
 				}
 			}
 		}
-
-		// @TODO: 返回显示代码所用的UI空间的高度
-		return 0f;
 	}
 
 	private void DrawSplitter(bool vertical = false)
@@ -958,14 +1010,12 @@ public class LogConsoleWindow : EditorWindow
 				if (ShouldDisplayLogEntry(mode))
 					currentDisplayEntries.Add(entry);
 				AccumulateLogCount(entry.type, 1);
-
-				PostProcessLogEntry(entry);
 			}
 		}
 		UnityInternal.endGettingEntriesMethod.Invoke(null, null);
 	}
 
-	private void PostProcessLogEntry(LogConsoleEntry entry)
+	private void ParseStackTraceFromLogEntry(LogConsoleEntry entry)
 	{
 		// 日志详情内容按照不同日志类型可以划分为几个不同的模板：
 		// 编译错误和编译警告
@@ -980,17 +1030,22 @@ public class LogConsoleWindow : EditorWindow
 		// 模板形式：[可能多行的日志内容]\n[命名空间].[类名].[函数名]([函数参数类型列表])(at [文件路径]:[行号])\n...
 		// 其他杂项
 		// 模板形式：没有固定样式，比如换行符不一致的警告，自动升级代码的通知，Unity内置消息弃用的警告等
-		if (entry.stackEntries == null)
-			entry.stackEntries = new List<StackEntry>();
+		if (currentSelectedStackEntries == null)
+			currentSelectedStackEntries = new List<StackEntry>();
 		else
-			entry.stackEntries.Clear();
+			currentSelectedStackEntries.Clear();
+		if (detailBuilder == null)
+			detailBuilder = new StringBuilder();
+		else
+			detailBuilder.Length = 0;
+		currentDoubleClickStackEntry = null;
 		if (HasMode(entry.mode, EMode.ScriptCompileWarning | EMode.ScriptCompileError))
 		{
+			// [文件相对路径]([行号],[列号]): [错误/警告代码]: [具体错误/警告描述]
 			string[] temp = entry.whole.Split(':');
 			if (temp.Length >= 3)
 			{
-
-				entry.text = string.Format("<color={0}>[{1}]</color> {2}", (entry.type == LogType.Warning) ? "yellow" : "#dd2222ff", temp[1].Trim(), temp[2].Trim());
+				currentSelectedDetail = string.Format("<color={0}>[{1}]</color> {2}", (entry.type == LogType.Warning) ? "yellow" : "#dd2222ff", temp[1].Trim(), temp[2].Trim());
 				temp = temp[0].Split(new char[] { '(', ',', ')' });
 				if (temp.Length >= 3)
 				{
@@ -1008,25 +1063,83 @@ public class LogConsoleWindow : EditorWindow
 						stack.stackLabel2 = string.Format("  {0}: line {1} column {2}", file.Replace("Assets/", ""), lineNum, charNum);
 					else
 						stack.stackLabel2 = string.Format("  {0}: line {1}", file.Replace("Assets/", ""), lineNum);
-					entry.stackEntries.Add(stack);
+					currentSelectedStackEntries.Add(stack);
+					currentDoubleClickStackEntry = stack;
 				}
 			}
 			else
 			{
-				entry.text = entry.whole;
+				currentSelectedDetail = entry.whole;
 			}
 		}
 		else if (HasMode(entry.mode, EMode.AssetImportWarning | EMode.AssetImportError))
 		{
-			entry.text = entry.whole;
+			// Shader ... in '[Shader路径]': [具体错误/警告描述] at line [行号] ...
+			// [可能多行的描述]\n([最后一行为Shader文件路径])
+			currentSelectedDetail = entry.whole;
 		}
-		else if (HasMode(entry.mode, EMode.ScriptingLog | EMode.ScriptingWarning | EMode.ScriptingException))
+		else if (HasMode(entry.mode, EMode.ScriptingLog | EMode.ScriptingWarning | EMode.ScriptingAssertion | EMode.ScriptingError | EMode.ScriptingException
+			| EMode.Error | EMode.Assert | EMode.Fatal))
 		{
-			entry.text = entry.whole;
+			// [可能多行的日志内容]\n[命名空间].[类名].[函数名]([函数参数类型列表])(at [文件路径]:[行号])\n...
+			currentDoubleClickStackEntry = null;
+			string[] temp1 = entry.whole.Split('\n');
+			bool foundStackTrace = false;
+			for (int i = 0; i < temp1.Length; ++i)
+			{
+				string s = temp1[i].Trim();
+				if (string.IsNullOrEmpty(s))
+					continue;
+				Match result = Regex.Match(s, @"(([\w_@]+\.)*)([\w_@]+)[:.]{1,2}([\w_@]+\s*\([\w_@,\.\s\[\]]*\))\s*(\(at (.+):(\d+)\))?");
+				if (result.Success)
+				{
+					if (!foundStackTrace)
+						foundStackTrace = true;
+					GroupCollection gc = result.Groups;
+					StackEntry stack = new StackEntry();
+					if (gc.Count == 8)
+					{
+						stack.namespaceName = gc[1].Value;
+						stack.className = gc[3].Value;
+						stack.methodName = gc[4].Value;
+						stack.fileName = gc[6].Value;
+						int.TryParse(gc[7].Value, out stack.lineNumber);
+						stack.stackLabel = string.Format("{0}{1}.{2}", stack.namespaceName, stack.className, stack.methodName);
+						if(!ShouldIgnoreStackEntry(stack))
+						{
+							if (!ShouldIgnoreStackEntryHyperLink(stack))
+							{
+								stack.stackLabel2 = string.Format("  {0}: line {1}", stack.fileName.Replace("Assets/", ""), stack.lineNumber);
+								if (currentDoubleClickStackEntry == null)
+									currentDoubleClickStackEntry = stack;
+							}
+							currentSelectedStackEntries.Add(stack);
+						}
+					}
+					else
+					{
+						stack.stackLabel = s;
+						currentSelectedStackEntries.Add(stack);
+					}
+				}
+				else
+				{
+					if (!foundStackTrace)
+						detailBuilder.Append(s + "\n");
+					else
+					{
+						StackEntry stack = new StackEntry();
+						stack.stackLabel = s;
+						currentSelectedStackEntries.Add(stack);
+					}
+				}
+			}
+			//currentSelectedDetail = entry.whole;
+			currentSelectedDetail = detailBuilder.ToString();
 		}
 		else
 		{
-			entry.text = entry.whole;
+			currentSelectedDetail = entry.whole;
 		}
 	}
 
@@ -1211,9 +1324,7 @@ public class LogConsoleWindow : EditorWindow
 	{
 		UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath(stackEntry.fileName, typeof(TextAsset));
 		if (obj != null)
-		{
 			AssetDatabase.OpenAsset(obj, (lineNum != -1) ? lineNum : stackEntry.lineNumber);
-		}
 	}
 
 	private void ReadSourceCode(string fileName, int lineNumber, ref List<string> output)
@@ -1245,5 +1356,29 @@ public class LogConsoleWindow : EditorWindow
 			}
 		}
 		catch { }
+	}
+
+	private bool ShouldIgnoreStackEntry(StackEntry entry)
+	{
+		if (entry.namespaceName.StartsWith("UnityEngine") && entry.className.Equals("Logger"))
+			return true;
+		if (entry.className.Equals("LogConsoleLoggerHandler"))
+			return true;
+		if (entry.className.Equals("LogConsole") && entry.methodName.StartsWith("_"))
+			return true;
+		return false;
+	}
+
+	private bool ShouldIgnoreStackEntryHyperLink(StackEntry entry)
+	{
+		if (string.IsNullOrEmpty(entry.fileName))
+			return true;
+		if (entry.namespaceName.StartsWith("UnityEngine.") || entry.namespaceName.StartsWith("UnityEditor."))
+			return true;
+		if (entry.namespaceName.StartsWith("System."))
+			return true;
+		if (entry.className.StartsWith("LogConsole"))
+			return true;
+		return false;
 	}
 }

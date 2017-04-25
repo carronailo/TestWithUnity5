@@ -11,6 +11,7 @@ namespace Test
 		public LogType type;
 
 		public GUIStyle s;
+		public GUIStyle s1;
 
 		public Texture2D t;
 		public Texture2D t2d;
@@ -34,7 +35,8 @@ namespace Test
 		private void OnGUI()
 		{
 			string tb = "ToolbarButton";
-			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN Message");
+			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("SearchTextField");
+			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("toolbar");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
 				Debug.Log("Test Unity Log");

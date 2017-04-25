@@ -54,6 +54,7 @@ public class LogConsoleWindow : EditorWindow
 		LogLevelError = 512
 	}
 
+	[Serializable]
 	private class LogConsoleEntry
 	{
 		public LogType type;
@@ -73,7 +74,8 @@ public class LogConsoleWindow : EditorWindow
 		}
 	}
 
-	public class StackEntry
+	[Serializable]
+	private class StackEntry
 	{
 		public string fileName;
 		public string className;
@@ -85,6 +87,18 @@ public class LogConsoleWindow : EditorWindow
 		public string stackLabel2;
 		public bool showSource;
 		public List<string> sourceCode;
+
+		public void Clear()
+		{
+			namespaceName = fileName = className = methodName = string.Empty;
+			lineNumber = charNumber = 0;
+			stackLabel = stackLabel2 = string.Empty;
+			showSource = false;
+			if (sourceCode == null)
+				sourceCode = new List<string>();
+			else
+				sourceCode.Clear();
+		}
 	}
 
 	private class UnityInternal
@@ -175,6 +189,8 @@ public class LogConsoleWindow : EditorWindow
 		public static GUIStyle StatusLog;
 		public static GUIStyle Toolbar;
 		public static GUIStyle CountBadge;
+		public static GUIStyle SearchField;
+		public static GUIStyle SearchFieldCancelButton;
 
 		public static Texture iconInfo;
 		public static Texture iconWarn;
@@ -224,6 +240,8 @@ public class LogConsoleWindow : EditorWindow
 				StatusWarn = "CN StatusWarn";
 				StatusLog = "CN StatusInfo";
 				CountBadge = "CN CountBadge";
+				SearchField = "ToolbarSeachTextField";
+				SearchFieldCancelButton = "ToolbarSeachCancelButton";
 
 				iconInfo = EditorGUIUtility.IconContent("console.infoicon").image;
 				iconWarn = Resources.Load<Texture>("iconpng_huang");
@@ -360,8 +378,9 @@ public class LogConsoleWindow : EditorWindow
 	}
 
 	private static readonly Vector2 windowSize = new Vector2(600, 300);
-	private static readonly int defaultDisplayLogCount = 10;
+	private static readonly int defaultDisplayLogCount = 16;
 	private static readonly float defaultDisplayLogHeight = 32f;
+	private static readonly int defaultDisplayStackEntryCount = 16;
 
 	[MenuItem("Window/My Console %#x")]
 	public static void CreateWindow()
@@ -470,6 +489,11 @@ public class LogConsoleWindow : EditorWindow
 	private bool selectChanged = false;
 
 	private List<GUIContent> currentDisplayLogGUIContentPool = null;
+	private List<StackEntry> currentDisplayStackEntryPool = null;
+
+	private Regex scriptLogMatchPattern = null;
+	private Regex searchPattern = null;
+	private string searchKeywords;
 
 	private bool needRepaint = false;
 
@@ -525,6 +549,7 @@ public class LogConsoleWindow : EditorWindow
 				needRepaint = true;
 			}
 		}
+		// @TODO: 编辑器编译结束后，如果有查询关键字则需要重新对日志列表进行一次查找过滤（因为经历过代码编译后，原本的查找过滤结果会失效）
 		if (needRepaint)
 		{
 			needRepaint = false;
@@ -553,6 +578,12 @@ public class LogConsoleWindow : EditorWindow
 			for (int i = 0; i < defaultDisplayLogCount; ++i)
 				currentDisplayLogGUIContentPool.Add(new GUIContent(string.Empty, StyleConstants.iconInfo));
 		}
+		if(currentDisplayStackEntryPool == null)
+		{
+			currentDisplayStackEntryPool = new List<StackEntry>();
+			for (int i = 0; i < defaultDisplayStackEntryCount; ++i)
+				currentDisplayStackEntryPool.Add(new StackEntry());
+		}
 
 		// 初始化时将窗口上相关复选框的状态设置为与Unity编辑器原生Console窗口相同
 		int unityConsoleFlags = (int)UnityInternal.logEntriesFlagField.GetValue(null, null);
@@ -568,6 +599,13 @@ public class LogConsoleWindow : EditorWindow
 		displayException = displayAssertion;
 
 		logAreaHeightRatio = logAreaDefaultHeightRatio;
+
+		scriptLogMatchPattern = new Regex(@"(([\w_@]+\.)*)([\w_@]+)[:.]{1,2}([\w_@]+\s*\([\w_@,\.\s\[\]]*\))\s*(\(at (.+):(\d+)\))?", RegexOptions.Compiled);
+		try
+		{
+			searchPattern = string.IsNullOrEmpty(searchKeywords) ? null : new Regex(searchKeywords);
+		}
+		catch { }
 		// @TODO: 其他扩展功能的相关参数，从EditorPrefs里读取
 	}
 
@@ -650,7 +688,29 @@ public class LogConsoleWindow : EditorWindow
 	private float DrawToolbar2()
 	{
 		GUILayout.BeginHorizontal(StyleConstants.Toolbar);
+		EditorGUI.BeginChangeCheck();
+		searchKeywords = EditorGUILayout.TextField(searchKeywords, StyleConstants.SearchField, GUILayout.Width(150f));
+		if(EditorGUI.EndChangeCheck())
+		{
+			try
+			{
+				searchPattern = string.IsNullOrEmpty(searchKeywords) ? null : new Regex(searchKeywords.Trim(), RegexOptions.Compiled);
+			}
+			catch { }
+			ReFetchLogEntryDisplayList();
+		}
+		if(GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButton))
+		{
+			// 清理搜索结果
+			searchKeywords = string.Empty;
+			searchPattern = null;
+			ReFetchLogEntryDisplayList();
+			needRepaint = true;
+			GUIUtility.hotControl = 0;
+			GUIUtility.keyboardControl = 0;
+		}
 		EditorGUILayout.Space();
+		// @TODO: 其他扩展功能
 		GUILayout.EndHorizontal();
 		return StyleConstants.MiniButton.fixedHeight;      // 工具栏高度就是ToolbarButton风格的固定高度
 	}
@@ -663,7 +723,7 @@ public class LogConsoleWindow : EditorWindow
 		float logDisplayAreaHeight = logAreaRect.height;
 		logEntriesScrollPosition = EditorGUILayout.BeginScrollView(logEntriesScrollPosition, StyleConstants.Box, GUILayout.Height(position.height * logAreaHeightRatio));
 		float currentDisplayStartY = logEntriesScrollPosition.y;
-		float currentDisolayEndY = currentDisplayStartY + logDisplayAreaHeight;
+		float currentDisplayEndY = currentDisplayStartY + logDisplayAreaHeight;
 		// 为了显示的需要，下面显示日志条目的地方没有使用Layout，为了确保ScrollView能够正常工作，这里先将显示所有日志条目所需的空间预留出来
 		GUILayoutUtility.GetRect(1f, currentDisplayEntries.Count * defaultDisplayLogHeight);
 		int currentDisplayCount = 0;
@@ -673,7 +733,7 @@ public class LogConsoleWindow : EditorWindow
 		{
 			// 判断当前条目是否会进入ScrollView的可视区域
 			float y = i * defaultDisplayLogHeight;
-			if (y > currentDisolayEndY || y + defaultDisplayLogHeight < currentDisplayStartY)
+			if (y > currentDisplayEndY || y + defaultDisplayLogHeight < currentDisplayStartY)
 				continue;
 			currentDisplayRect.y = y;
 			if (current.type == EventType.MouseDown && current.button == 0 && currentDisplayRect.Contains(current.mousePosition))
@@ -691,6 +751,16 @@ public class LogConsoleWindow : EditorWindow
 				{
 					currentSelectedEntry = currentDisplayEntries[i];
 					selectChanged = true;
+					// 当选中一条条目时，如果条目有对应的context，需要在Hierachy窗口高亮对应物体
+					SetActiveEntry(currentSelectedEntry);
+					ParseStackTraceFromLogEntry(currentSelectedEntry);
+					// 当选中一个条目时，要确保条目被完全显示在滚动区域中
+					if (y < currentDisplayStartY)
+						logEntriesScrollPosition -= new Vector2(0f, currentDisplayStartY - y);
+					else if (y + defaultDisplayLogHeight > currentDisplayEndY)
+						logEntriesScrollPosition += new Vector2(0f, y + defaultDisplayLogHeight - currentDisplayEndY);
+					// 堆栈显示区则要重置滚动条
+					stackTraceScrollPosition = Vector2.zero;
 				}
 				// 当前点击事件不能再继续向后传递，这很重要！
 				current.Use();
@@ -709,19 +779,13 @@ public class LogConsoleWindow : EditorWindow
 				textStyle.Draw(currentDisplayRect, content, false, false, currentSelectedEntry == currentDisplayEntries[i], false);
 				//EditorGUI.LabelField(currentDisplayRect, content, GetStyleForErrorMode(currentDisplayEntries[i].mode));
 			}
-			// @TODO: 当选中一个条目时，要确保条目被完全显示在滚动区域中
-			// 当选中一条条目时，如果条目有对应的context，需要在Hierachy窗口高亮对应物体
-			if (selectChanged && currentSelectedEntry != null)
-			{
-				SetActiveEntry(currentSelectedEntry);
-				ParseStackTraceFromLogEntry(currentSelectedEntry);
-				stackTraceScrollPosition = Vector2.zero;
-			}
 			++currentDisplayCount;
 		}
 		EditorGUILayout.EndScrollView();
 		EditorGUILayout.EndVertical();
 		//EditorGUILayout.LabelField(string.Format("Area[{0}], Scroll[{1}], LogCount[{2}], DisplayCount[{3}/{4}]", areaRect, logEntriesScrollPosition, currentDisplayEntries.Count, currentDisplayCount, currentDisplayLogGUIContentPool.Count));
+
+		// @TODO: 如果当前已经滚动到了最下方，那么当有新日志出现时需要自动滚屏
 	}
 
 	private void DrawResizeArea()
@@ -819,9 +883,8 @@ public class LogConsoleWindow : EditorWindow
 
 	private void DrawSourceCode(StackEntry stackEntry)
 	{
-		if (!string.IsNullOrEmpty(stackEntry.fileName) && stackEntry.sourceCode == null)
+		if (!string.IsNullOrEmpty(stackEntry.fileName) && (stackEntry.sourceCode == null && stackEntry.sourceCode.Count <= 0))
 		{
-			stackEntry.sourceCode = new List<string>();
 			ReadSourceCode(stackEntry.fileName, stackEntry.lineNumber, ref stackEntry.sourceCode);
 		}
 		if (stackEntry.sourceCode != null && stackEntry.sourceCode.Count >= 5)
@@ -1008,7 +1071,11 @@ public class LogConsoleWindow : EditorWindow
 				entry.type = GetLogTypeForErrorMode(mode);
 				currentEntries.Add(entry);
 				if (ShouldDisplayLogEntry(mode))
-					currentDisplayEntries.Add(entry);
+				{
+					// @TODO: 高亮被命中的字符串
+					if (searchPattern == null || IsLogEntryMatch(searchPattern, wholeText))
+						currentDisplayEntries.Add(entry);
+				}
 				AccumulateLogCount(entry.type, 1);
 			}
 		}
@@ -1054,7 +1121,7 @@ public class LogConsoleWindow : EditorWindow
 					int.TryParse(temp[1], out lineNum);
 					int charNum = 0;
 					int.TryParse(temp[2], out charNum);
-					StackEntry stack = new StackEntry();
+					StackEntry stack = GetStackEntryFromStackEntryPool(0);
 					stack.fileName = file;
 					stack.lineNumber = lineNum;
 					stack.charNumber = charNum;
@@ -1090,13 +1157,13 @@ public class LogConsoleWindow : EditorWindow
 				string s = temp1[i].Trim();
 				if (string.IsNullOrEmpty(s))
 					continue;
-				Match result = Regex.Match(s, @"(([\w_@]+\.)*)([\w_@]+)[:.]{1,2}([\w_@]+\s*\([\w_@,\.\s\[\]]*\))\s*(\(at (.+):(\d+)\))?");
+				Match result = scriptLogMatchPattern.Match(s);
 				if (result.Success)
 				{
 					if (!foundStackTrace)
 						foundStackTrace = true;
 					GroupCollection gc = result.Groups;
-					StackEntry stack = new StackEntry();
+					StackEntry stack = GetStackEntryFromStackEntryPool(i);
 					if (gc.Count == 8)
 					{
 						stack.namespaceName = gc[1].Value;
@@ -1128,7 +1195,7 @@ public class LogConsoleWindow : EditorWindow
 						detailBuilder.Append(s + "\n");
 					else
 					{
-						StackEntry stack = new StackEntry();
+						StackEntry stack = GetStackEntryFromStackEntryPool(i);
 						stack.stackLabel = s;
 						currentSelectedStackEntries.Add(stack);
 					}
@@ -1153,6 +1220,23 @@ public class LogConsoleWindow : EditorWindow
 				currentDisplayLogGUIContentPool.Add(new GUIContent(string.Empty, StyleConstants.iconInfo));
 			return currentDisplayLogGUIContentPool[index];
 		}
+	}
+
+	private StackEntry GetStackEntryFromStackEntryPool(int index)
+	{
+		StackEntry entry = null;
+		if (index < currentDisplayStackEntryPool.Count)
+		{
+			entry = currentDisplayStackEntryPool[index];
+		}
+		else
+		{
+			while (index >= currentDisplayStackEntryPool.Count)
+				currentDisplayStackEntryPool.Add(new StackEntry());
+			entry = currentDisplayStackEntryPool[index];
+		}
+		entry.Clear();
+		return entry;
 	}
 
 	private void ClearAllLog()
@@ -1239,6 +1323,11 @@ public class LogConsoleWindow : EditorWindow
 		}
 	}
 
+	private bool IsLogEntryMatch(Regex searchPattern, string logEntry)
+	{
+		return searchPattern.IsMatch(logEntry);
+	}
+
 	private void ReFetchLogEntryDisplayList()
 	{
 		currentDisplayEntries.Clear();
@@ -1246,7 +1335,11 @@ public class LogConsoleWindow : EditorWindow
 		{
 			LogConsoleEntry entry = currentEntries[i];
 			if (ShouldDisplayLogEntry(entry.mode))
-				currentDisplayEntries.Add(entry);
+			{
+				// @TODO: 高亮被命中的字符串
+				if (searchPattern == null || IsLogEntryMatch(searchPattern, entry.whole))
+					currentDisplayEntries.Add(entry);
+			}
 		}
 	}
 

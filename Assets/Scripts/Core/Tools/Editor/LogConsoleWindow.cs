@@ -243,21 +243,29 @@ public class LogConsoleWindow : EditorWindow
 				SearchField = "ToolbarSeachTextField";
 				SearchFieldCancelButton = "ToolbarSeachCancelButton";
 
+				DirectoryInfo di = new DirectoryInfo(Application.dataPath);
+				FileInfo[] fis = di.GetFiles("LogConsoleWindow.cs", SearchOption.AllDirectories);
+				if(fis != null && fis.Length > 0)
+				{
+					FileInfo thisFile = fis[0];
+					string iconPath = thisFile.Directory.FullName + "/Icons/";
+					iconPath = iconPath.Replace("\\", "/").Replace(Application.dataPath, "Assets");
+					iconWarn = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_huang.png") as Texture;
+					iconError = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_hong.png") as Texture;
+					iconAssertion = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_cheng.png") as Texture;
+					iconException = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_zi.png") as Texture;
+					iconWarnSmall = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_huang_sml.png") as Texture;
+					iconErrorSmall = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_hong_sml.png") as Texture;
+					iconAssertionSmall = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_cheng_sml.png") as Texture;
+					iconExceptionSmall = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_zi_sml.png") as Texture;
+					iconWarnMono = AssetDatabase.LoadMainAssetAtPath(iconPath + "iconpng_hui_sml.png") as Texture;
+					iconErrorMono = iconWarnMono;
+					iconAssertionMono = iconWarnMono;
+					iconExceptionMono = iconWarnMono;
+				}
 				iconInfo = EditorGUIUtility.IconContent("console.infoicon").image;
-				iconWarn = Resources.Load<Texture>("iconpng_huang");
-				iconError = Resources.Load<Texture>("iconpng_hong");
-				iconAssertion = Resources.Load<Texture>("iconpng_cheng");
-				iconException = Resources.Load<Texture>("iconpng_zi");
 				iconInfoSmall = EditorGUIUtility.IconContent("console.infoicon.sml").image;
-				iconWarnSmall = Resources.Load<Texture>("iconpng_huang_sml");
-				iconErrorSmall = Resources.Load<Texture>("iconpng_hong_sml");
-				iconAssertionSmall = Resources.Load<Texture>("iconpng_cheng_sml");
-				iconExceptionSmall = Resources.Load<Texture>("iconpng_zi_sml");
 				iconInfoMono = EditorGUIUtility.IconContent("console.infoicon.sml").image;
-				iconWarnMono = Resources.Load<Texture>("iconpng_hui_sml");
-				iconErrorMono = iconWarnMono;
-				iconAssertionMono = iconWarnMono;
-				iconExceptionMono = iconWarnMono;
 
 				WarningStyle = new GUIStyle(WarningStyle);
 				WarningStyle.normal.background = (Texture2D)iconWarn;

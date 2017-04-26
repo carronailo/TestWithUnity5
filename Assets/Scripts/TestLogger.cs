@@ -20,9 +20,10 @@ namespace Test
 		// Use this for initialization
 		void Start()
 		{
-			t.anisoLevel = 1;
+			//t.anisoLevel = 1;
 			Debug.logger.logEnabled = true;
 			Debug.logger.filterLogType = LogType.Log;
+			t2d = (Texture2D)EditorGUIUtility.IconContent("AssetLabelIcon").image;
 		}
 
 		// Update is called once per frame
@@ -36,7 +37,7 @@ namespace Test
 		{
 			string tb = "ToolbarButton";
 			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("SearchTextField");
-			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN Message");
+			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryInfo");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
 				Debug.Log("Test Unity Log");

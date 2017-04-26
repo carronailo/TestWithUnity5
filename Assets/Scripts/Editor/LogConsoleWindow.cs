@@ -382,10 +382,10 @@ public class LogConsoleWindow : EditorWindow
 	private static readonly float defaultDisplayLogHeight = 32f;
 	private static readonly int defaultDisplayStackEntryCount = 16;
 
-	[MenuItem("Window/My Console %#x")]
+	[MenuItem("Window/Console+ %#x")]
 	public static void CreateWindow()
 	{
-		LogConsoleWindow window = GetWindow<LogConsoleWindow>("MyConsole", true);
+		LogConsoleWindow window = GetWindow<LogConsoleWindow>("Console+", true);
 		window.minSize = windowSize;
 	}
 
@@ -488,7 +488,7 @@ public class LogConsoleWindow : EditorWindow
 
 	private List<LogConsoleEntry> currentEntries = null;
 	private List<LogConsoleEntry> currentDisplayEntries = null;
-	private LogConsoleEntry currentSelectedEntry = null;
+	private int currentSelectedEntryIndex = -1;
 	private string currentSelectedDetail;
 	private StringBuilder detailBuilder = null;
 	private List<StackEntry> currentSelectedStackEntries = null;
@@ -632,6 +632,7 @@ public class LogConsoleWindow : EditorWindow
 
 		EditorGUILayout.Space();
 
+		// @TODO 添加Collapse功能
 		collapseEntries = GUILayout.Toggle(collapseEntries, ContentConstants.collapseEntriesGUIContent, StyleConstants.MiniButtonLeft);
 		SetUnityConsoleFlag(EConsoleFlags.Collapse, collapseEntries);
 		clearOnPlay = GUILayout.Toggle(clearOnPlay, ContentConstants.clearOnPlayGUIContent, StyleConstants.MiniButtonMiddle);
@@ -776,13 +777,13 @@ public class LogConsoleWindow : EditorWindow
 					else
 						UnityInternal.rowGotDoubleClickedMethod.Invoke(null, new object[] { i });
 				}
-				if (currentSelectedEntry != currentDisplayEntries[i])
+				if (currentSelectedEntryIndex != i)
 				{
-					currentSelectedEntry = currentDisplayEntries[i];
+					currentSelectedEntryIndex = i;
 					selectChanged = true;
 					// 当选中一条条目时，如果条目有对应的context，需要在Hierachy窗口高亮对应物体
-					SetActiveEntry(currentSelectedEntry);
-					ParseStackTraceFromLogEntry(currentSelectedEntry);
+					SetActiveEntry(currentDisplayEntries[i]);
+					ParseStackTraceFromLogEntry(currentDisplayEntries[i]);
 					// 当选中一个条目时，要确保条目被完全显示在滚动区域中
 					if (y < currentDisplayStartY)
 						logEntriesScrollPosition -= new Vector2(0f, currentDisplayStartY - y);
@@ -794,21 +795,60 @@ public class LogConsoleWindow : EditorWindow
 				// 当前点击事件不能再继续向后传递，这很重要！
 				current.Use();
 			}
-			if (Event.current.type == EventType.Repaint)
+			else if (current.type == EventType.Repaint)
 			{
 				// 绘制背景（奇偶数的日志背景颜色不同）
 				GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.EvenBackground : StyleConstants.OddBackground;
-				backgroundStyle.Draw(currentDisplayRect, false, false, currentSelectedEntry == currentDisplayEntries[i], false);
+				backgroundStyle.Draw(currentDisplayRect, false, false, currentSelectedEntryIndex == i, false);
 				// 绘制日志内容
 				GUIContent content = GetGUIContentFormLogDisplayPool(currentDisplayCount);
 				content.text = currentDisplayEntries[i].fistTwoLines;
 				//content.text = currentDisplayEntries[i].ToString();
 				GUIStyle textStyle = GetStyleForErrorMode(currentDisplayEntries[i].mode);
-				//textStyle.Draw(currentDisplayRect, content, controlID, currentSelectedEntry == currentDisplayEntries[i]);
-				textStyle.Draw(currentDisplayRect, content, false, false, currentSelectedEntry == currentDisplayEntries[i], false);
+				//textStyle.Draw(currentDisplayRect, content, controlID, currentSelectedEntryIndex == i);
+				textStyle.Draw(currentDisplayRect, content, false, false, currentSelectedEntryIndex == i, false);
 				//EditorGUI.LabelField(currentDisplayRect, content, GetStyleForErrorMode(currentDisplayEntries[i].mode));
 			}
 			++currentDisplayCount;
+		}
+		if (current.type == EventType.KeyDown)
+		{
+			if (current.keyCode == KeyCode.UpArrow)
+			{
+				currentSelectedEntryIndex = Mathf.Max(0, currentSelectedEntryIndex - 1);
+				selectChanged = true;
+				autoScroll = false;
+				current.Use();
+			}
+			else if (current.keyCode == KeyCode.DownArrow)
+			{
+				currentSelectedEntryIndex = Mathf.Min(currentDisplayEntries.Count - 1, currentSelectedEntryIndex + 1);
+				selectChanged = true;
+				autoScroll = false;
+				current.Use();
+			}
+			else if (current.keyCode == KeyCode.Return)
+			{
+				if (currentSelectedEntryIndex >= 0 && currentDisplayEntries.Count > currentSelectedEntryIndex)
+				{
+					if (currentDoubleClickStackEntry != null)
+						OpenEditorToStackEntry(currentDoubleClickStackEntry, -1);
+					else
+						UnityInternal.rowGotDoubleClickedMethod.Invoke(null, new object[] { currentSelectedEntryIndex });
+				}
+				autoScroll = false;
+				current.Use();
+			}
+			if (selectChanged)
+			{
+				SetActiveEntry(currentDisplayEntries[currentSelectedEntryIndex]);
+				ParseStackTraceFromLogEntry(currentDisplayEntries[currentSelectedEntryIndex]);
+				float y = currentSelectedEntryIndex * defaultDisplayLogHeight;
+				if (y < currentDisplayStartY)
+					logEntriesScrollPosition -= new Vector2(0f, currentDisplayStartY - y);
+				else if (y + defaultDisplayLogHeight > currentDisplayEndY)
+					logEntriesScrollPosition += new Vector2(0f, y + defaultDisplayLogHeight - currentDisplayEndY);
+			}
 		}
 		EditorGUILayout.EndScrollView();
 		EditorGUILayout.EndVertical();
@@ -847,62 +887,62 @@ public class LogConsoleWindow : EditorWindow
 
 		GUILayout.Space(1f);
 		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition);
+		// 显示在StackTrace之前的日志内容
+		LogConsoleEntry entry = (currentDisplayEntries == null || currentSelectedEntryIndex < 0 || currentDisplayEntries.Count <= currentSelectedEntryIndex)
+			? null : currentDisplayEntries[currentSelectedEntryIndex];
+		ContentConstants.stackTraceGUIContent.text = entry != null ? currentSelectedDetail : string.Empty;
+		float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
+		if (selectChanged)
 		{
-			// 显示在StackTrace之前的日志内容
-			ContentConstants.stackTraceGUIContent.text = currentSelectedEntry != null ? currentSelectedDetail : string.Empty;
-			float minHeight = StyleConstants.MessageStyle.CalcHeight(ContentConstants.stackTraceGUIContent, position.width);
-			if (selectChanged)
+			// 当选中的条目发生变化的时候，要将当前的选择状态取消掉
+			GUIUtility.hotControl = 0;
+			GUIUtility.keyboardControl = 0;
+		}
+		EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
+			GUILayout.ExpandWidth(true), GUILayout.Height(minHeight)/*GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight)*/);
+		if (entry != null && currentSelectedStackEntries.Count > 0)
+		{
+			for (int i = 0; i < currentSelectedStackEntries.Count; ++i)
 			{
-				// 当选中的条目发生变化的时候，要将当前的选择状态取消掉
-				GUIUtility.hotControl = 0;
-				GUIUtility.keyboardControl = 0;
-			}
-			EditorGUILayout.SelectableLabel(ContentConstants.stackTraceGUIContent.text, StyleConstants.MessageStyle,
-				GUILayout.ExpandWidth(true), GUILayout.Height(minHeight)/*GUILayout.ExpandHeight(true), GUILayout.MinHeight(minHeight)*/);
-			if (currentSelectedEntry != null && currentSelectedStackEntries.Count > 0)
-			{
-				for (int i = 0; i < currentSelectedStackEntries.Count; ++i)
+				StackEntry stackEntry = currentSelectedStackEntries[i];
+				// 堆栈里每隔一个元素背景的颜色需要变化一下
+				GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.OddBackground : StyleConstants.EvenBackground;
+				EditorGUILayout.BeginVertical(backgroundStyle);
+				if (!string.IsNullOrEmpty(stackEntry.stackLabel2))
 				{
-					StackEntry stackEntry = currentSelectedStackEntries[i];
-					// 堆栈里每隔一个元素背景的颜色需要变化一下
-					GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.OddBackground : StyleConstants.EvenBackground;
-					EditorGUILayout.BeginVertical(backgroundStyle);
-					if (!string.IsNullOrEmpty(stackEntry.stackLabel2))
+					GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+					if (stackLabelGUIContent != null)
 					{
-						GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
-						if (stackLabelGUIContent != null)
-						{
-							stackLabelGUIContent.text = stackEntry.stackLabel;
-							if (GUILayout.Button(stackLabelGUIContent, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
-								OpenEditorToStackEntry(stackEntry, -1);
-						}
-						GUIContent stackLabel2GUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
-						if (stackLabel2GUIContent != null)
-						{
-							stackLabel2GUIContent.text = stackEntry.stackLabel2;
-							stackEntry.showSource = EditorGUILayout.Foldout(stackEntry.showSource, stackLabel2GUIContent, true, StyleConstants.CodeFoldoutStyle);
-							if (stackEntry.showSource)
-								DrawSourceCode(stackEntry);
-						}
+						stackLabelGUIContent.text = stackEntry.stackLabel;
+						if (GUILayout.Button(stackLabelGUIContent, StyleConstants.MessageButtonBoldStyle) && Event.current.button == 0)
+							OpenEditorToStackEntry(stackEntry, -1);
 					}
-					else
+					GUIContent stackLabel2GUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+					if (stackLabel2GUIContent != null)
 					{
-						GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
-						if (stackLabelGUIContent != null)
-						{
-							stackLabelGUIContent.text = stackEntry.stackLabel;
-							GUILayout.Label(stackLabelGUIContent, StyleConstants.MessageButtonStyle);
-						}
+						stackLabel2GUIContent.text = stackEntry.stackLabel2;
+						stackEntry.showSource = EditorGUILayout.Foldout(stackEntry.showSource, stackLabel2GUIContent, true, StyleConstants.CodeFoldoutStyle);
+						if (stackEntry.showSource)
+							DrawSourceCode(stackEntry);
 					}
-					EditorGUILayout.EndVertical();
-
-					//if (current.type == EventType.Repaint)
-					//{
-					//	// 绘制背景（奇偶数的日志背景颜色不同）
-					//	GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.EvenBackground : StyleConstants.OddBackground;
-					//	backgroundStyle.Draw(currentDisplayRect, false, false, false, false);
-					//}
 				}
+				else
+				{
+					GUIContent stackLabelGUIContent = ContentConstants.GetStackTraceItemGUIContentFromPool();
+					if (stackLabelGUIContent != null)
+					{
+						stackLabelGUIContent.text = stackEntry.stackLabel;
+						GUILayout.Label(stackLabelGUIContent, StyleConstants.MessageButtonStyle);
+					}
+				}
+				EditorGUILayout.EndVertical();
+
+				//if (current.type == EventType.Repaint)
+				//{
+				//	// 绘制背景（奇偶数的日志背景颜色不同）
+				//	GUIStyle backgroundStyle = (i % 2 != 0) ? StyleConstants.EvenBackground : StyleConstants.OddBackground;
+				//	backgroundStyle.Draw(currentDisplayRect, false, false, false, false);
+				//}
 			}
 		}
 		EditorGUILayout.EndScrollView();
@@ -1275,7 +1315,7 @@ public class LogConsoleWindow : EditorWindow
 	{
 		currentEntries.Clear();
 		currentDisplayEntries.Clear();
-		currentSelectedEntry = null;
+		currentSelectedEntryIndex = -1;
 		selectChanged = true;
 		logCount = 0;
 		warningCount = 0;
@@ -1510,6 +1550,8 @@ public class LogConsoleWindow : EditorWindow
 					for (; i < lineNumber + 2; i++)
 					{
 						string text = streamReader.ReadLine();
+						if (text == null)
+							break;		// 已经读到了文件末尾
 						if (i >= lineNumber - 3)
 							output.Add(string.Format("{0}:\t{1}", (i + 1), text.Replace("\t", "  ")));
 					}

@@ -36,7 +36,7 @@ namespace Test
 		{
 			string tb = "ToolbarButton";
 			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("SearchTextField");
-			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("toolbar");
+			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN Message");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
 				Debug.Log("Test Unity Log");

@@ -469,12 +469,19 @@ public class LogConsoleWindow : EditorWindow
 	private int assertionCount = 0;
 	private int exceptionCount = 0;
 
+	private int matchLogCount = 0;
+	private int matchWarningCount = 0;
+	private int matchErrorCount = 0;
+	private int matchAssertionCount = 0;
+	private int matchExceptionCount = 0;
+
 	private float logAreaDefaultHeightRatio = 0.6f;
 	private float logAreaMinHeightRatio = 0.1f;
 	private float logAreaMaxHeightRatio = 0.8f;
 	private float logAreaHeightRatio = 0f;
 	private Rect logAreaRect = Rect.zero;
 	private Vector2 logEntriesScrollPosition = Vector2.zero;
+	private bool autoScroll = true;
 	private Rect stackAreaRect = Rect.zero;
 	private Vector2 stackTraceScrollPosition = Vector2.zero;
 	private bool resizingLogArea = false;
@@ -578,7 +585,7 @@ public class LogConsoleWindow : EditorWindow
 			for (int i = 0; i < defaultDisplayLogCount; ++i)
 				currentDisplayLogGUIContentPool.Add(new GUIContent(string.Empty, StyleConstants.iconInfo));
 		}
-		if(currentDisplayStackEntryPool == null)
+		if (currentDisplayStackEntryPool == null)
 		{
 			currentDisplayStackEntryPool = new List<StackEntry>();
 			for (int i = 0; i < defaultDisplayStackEntryCount; ++i)
@@ -690,7 +697,7 @@ public class LogConsoleWindow : EditorWindow
 		GUILayout.BeginHorizontal(StyleConstants.Toolbar);
 		EditorGUI.BeginChangeCheck();
 		searchKeywords = EditorGUILayout.TextField(searchKeywords, StyleConstants.SearchField, GUILayout.Width(150f));
-		if(EditorGUI.EndChangeCheck())
+		if (EditorGUI.EndChangeCheck())
 		{
 			try
 			{
@@ -699,7 +706,7 @@ public class LogConsoleWindow : EditorWindow
 			catch { }
 			ReFetchLogEntryDisplayList();
 		}
-		if(GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButton))
+		if (GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButton))
 		{
 			// 清理搜索结果
 			searchKeywords = string.Empty;
@@ -709,7 +716,22 @@ public class LogConsoleWindow : EditorWindow
 			GUIUtility.hotControl = 0;
 			GUIUtility.keyboardControl = 0;
 		}
-		EditorGUILayout.Space();
+		GUILayout.Label("Found:", StyleConstants.MessageStyle, GUILayout.Width(45f));
+		GUILayout.Label(StyleConstants.iconInfoSmall, StyleConstants.MessageStyle);
+		GUILayout.Label((matchLogCount > 9999) ? "9999+" : matchLogCount.ToString(), StyleConstants.MessageStyle);
+		GUILayout.Label(StyleConstants.iconWarnSmall, StyleConstants.MessageStyle);
+		GUILayout.Label((matchWarningCount > 9999) ? "9999+" : matchWarningCount.ToString(), StyleConstants.MessageStyle);
+		GUILayout.Label(StyleConstants.iconAssertionSmall, StyleConstants.MessageStyle);
+		GUILayout.Label((matchAssertionCount > 9999) ? "9999+" : matchAssertionCount.ToString(), StyleConstants.MessageStyle);
+		GUILayout.Label(StyleConstants.iconErrorSmall, StyleConstants.MessageStyle);
+		GUILayout.Label((matchErrorCount > 9999) ? "9999+" : matchErrorCount.ToString(), StyleConstants.MessageStyle);
+		GUILayout.Label(StyleConstants.iconExceptionSmall, StyleConstants.MessageStyle);
+		GUILayout.Label((matchExceptionCount > 9999) ? "9999+" : matchExceptionCount.ToString(), StyleConstants.MessageStyle);
+		GUILayout.FlexibleSpace();
+		if (GUILayout.Button("Dump Log List", StyleConstants.MiniButtonRight))
+		{
+			DumpCurrentLogEntries();
+		}
 		// @TODO: 其他扩展功能
 		GUILayout.EndHorizontal();
 		return StyleConstants.MiniButton.fixedHeight;      // 工具栏高度就是ToolbarButton风格的固定高度
@@ -721,7 +743,14 @@ public class LogConsoleWindow : EditorWindow
 
 		logAreaRect = EditorGUILayout.BeginVertical();
 		float logDisplayAreaHeight = logAreaRect.height;
+
+		// 如果当前已经滚动到了最下方，那么当有新日志出现时需要自动滚屏
+		float autoScrollFactor = Mathf.Max(0f, currentDisplayEntries.Count * defaultDisplayLogHeight - logDisplayAreaHeight);
+		if (autoScroll)
+			logEntriesScrollPosition = new Vector2(0f, autoScrollFactor);
 		logEntriesScrollPosition = EditorGUILayout.BeginScrollView(logEntriesScrollPosition, StyleConstants.Box, GUILayout.Height(position.height * logAreaHeightRatio));
+		autoScroll = logEntriesScrollPosition.y >= autoScrollFactor;
+
 		float currentDisplayStartY = logEntriesScrollPosition.y;
 		float currentDisplayEndY = currentDisplayStartY + logDisplayAreaHeight;
 		// 为了显示的需要，下面显示日志条目的地方没有使用Layout，为了确保ScrollView能够正常工作，这里先将显示所有日志条目所需的空间预留出来
@@ -784,8 +813,6 @@ public class LogConsoleWindow : EditorWindow
 		EditorGUILayout.EndScrollView();
 		EditorGUILayout.EndVertical();
 		//EditorGUILayout.LabelField(string.Format("Area[{0}], Scroll[{1}], LogCount[{2}], DisplayCount[{3}/{4}]", areaRect, logEntriesScrollPosition, currentDisplayEntries.Count, currentDisplayCount, currentDisplayLogGUIContentPool.Count));
-
-		// @TODO: 如果当前已经滚动到了最下方，那么当有新日志出现时需要自动滚屏
 	}
 
 	private void DrawResizeArea()
@@ -1073,8 +1100,13 @@ public class LogConsoleWindow : EditorWindow
 				if (ShouldDisplayLogEntry(mode))
 				{
 					// @TODO: 高亮被命中的字符串
-					if (searchPattern == null || IsLogEntryMatch(searchPattern, wholeText))
+					if (searchPattern == null)
 						currentDisplayEntries.Add(entry);
+					else if (IsLogEntryMatch(searchPattern, wholeText))
+					{
+						currentDisplayEntries.Add(entry);
+						AccumulateMatchLogCount(entry.type, 1);
+					}
 				}
 				AccumulateLogCount(entry.type, 1);
 			}
@@ -1172,7 +1204,7 @@ public class LogConsoleWindow : EditorWindow
 						stack.fileName = gc[6].Value;
 						int.TryParse(gc[7].Value, out stack.lineNumber);
 						stack.stackLabel = string.Format("{0}{1}.{2}", stack.namespaceName, stack.className, stack.methodName);
-						if(!ShouldIgnoreStackEntry(stack))
+						if (!ShouldIgnoreStackEntry(stack))
 						{
 							if (!ShouldIgnoreStackEntryHyperLink(stack))
 							{
@@ -1250,6 +1282,11 @@ public class LogConsoleWindow : EditorWindow
 		errorCount = 0;
 		assertionCount = 0;
 		exceptionCount = 0;
+		matchLogCount = 0;
+		matchWarningCount = 0;
+		matchAssertionCount = 0;
+		matchErrorCount = 0;
+		matchExceptionCount = 0;
 	}
 
 	private void AccumulateLogCount(LogType type, int num)
@@ -1270,6 +1307,30 @@ public class LogConsoleWindow : EditorWindow
 				break;
 			case LogType.Exception:
 				exceptionCount += num;
+				break;
+			default:
+				break;
+		}
+	}
+
+	private void AccumulateMatchLogCount(LogType type, int num)
+	{
+		switch (type)
+		{
+			case LogType.Log:
+				matchLogCount += num;
+				break;
+			case LogType.Warning:
+				matchWarningCount += num;
+				break;
+			case LogType.Error:
+				matchErrorCount += num;
+				break;
+			case LogType.Assert:
+				matchAssertionCount += num;
+				break;
+			case LogType.Exception:
+				matchExceptionCount += num;
 				break;
 			default:
 				break;
@@ -1331,14 +1392,24 @@ public class LogConsoleWindow : EditorWindow
 	private void ReFetchLogEntryDisplayList()
 	{
 		currentDisplayEntries.Clear();
+		matchLogCount = 0;
+		matchWarningCount = 0;
+		matchAssertionCount = 0;
+		matchErrorCount = 0;
+		matchExceptionCount = 0;
 		for (int i = 0; i < currentEntries.Count; ++i)
 		{
 			LogConsoleEntry entry = currentEntries[i];
 			if (ShouldDisplayLogEntry(entry.mode))
 			{
 				// @TODO: 高亮被命中的字符串
-				if (searchPattern == null || IsLogEntryMatch(searchPattern, entry.whole))
+				if (searchPattern == null)
 					currentDisplayEntries.Add(entry);
+				else if (IsLogEntryMatch(searchPattern, entry.whole))
+				{
+					currentDisplayEntries.Add(entry);
+					AccumulateMatchLogCount(entry.type, 1);
+				}
 			}
 		}
 	}
@@ -1473,5 +1544,20 @@ public class LogConsoleWindow : EditorWindow
 		if (entry.className.StartsWith("LogConsole"))
 			return true;
 		return false;
+	}
+
+	private void DumpCurrentLogEntries()
+	{
+		string savePath = EditorUtility.SaveFilePanel("保存日志列表", Application.dataPath, "Dump_" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"), "txt");
+		if (!string.IsNullOrEmpty(savePath))
+		{
+			using (StreamWriter writer = new StreamWriter(savePath))
+			{
+				for (int i = 0; i < currentEntries.Count; ++i)
+				{
+					writer.WriteLine(currentEntries[i].whole);
+				}
+			}
+		}
 	}
 }

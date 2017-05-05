@@ -490,7 +490,7 @@ public class LogConsoleWindow : EditorWindow
 	private Rect logAreaRect = Rect.zero;
 	private Vector2 logEntriesScrollPosition = Vector2.zero;
 	private bool autoScroll = true;
-	private Rect stackAreaRect = Rect.zero;
+	//private Rect stackAreaRect = Rect.zero;
 	private Vector2 stackTraceScrollPosition = Vector2.zero;
 	private bool resizingLogArea = false;
 
@@ -821,17 +821,20 @@ public class LogConsoleWindow : EditorWindow
 		}
 		if (current.type == EventType.KeyDown)
 		{
+			int oldIndex = currentSelectedEntryIndex;
 			if (current.keyCode == KeyCode.UpArrow)
 			{
 				currentSelectedEntryIndex = Mathf.Max(0, currentSelectedEntryIndex - 1);
-				selectChanged = true;
+				if(oldIndex != currentSelectedEntryIndex)
+					selectChanged = true;
 				autoScroll = false;
 				current.Use();
 			}
 			else if (current.keyCode == KeyCode.DownArrow)
 			{
 				currentSelectedEntryIndex = Mathf.Min(currentDisplayEntries.Count - 1, currentSelectedEntryIndex + 1);
-				selectChanged = true;
+				if (oldIndex != currentSelectedEntryIndex)
+					selectChanged = true;
 				autoScroll = false;
 				current.Use();
 			}
@@ -891,7 +894,7 @@ public class LogConsoleWindow : EditorWindow
 
 	private void DrawStackTrace()
 	{
-		Event current = Event.current;
+		//Event current = Event.current;
 
 		GUILayout.Space(1f);
 		stackTraceScrollPosition = EditorGUILayout.BeginScrollView(stackTraceScrollPosition);
@@ -1092,14 +1095,14 @@ public class LogConsoleWindow : EditorWindow
 			}
 			else
 			{
-				return currentLogEntriesCount - 1;
+				return currentLogEntriesCount;
 				/*
 				// 对比检查双方首条日志是否同一条
 				if ((bool)getEntryMethod.Invoke(null, new object[] { 0, logEntry }))
 				{
 					int instanceID = (int)logEntryInstanceIDField.GetValue(logEntry);
 					if (currentEntries[0].instanceID == instanceID)
-						return currentLogEntriesCount - 1;  // 第一条日志是同一条，那么只需要获取编辑器Console窗口多出来的那些日志
+						return currentLogEntriesCount;  // 第一条日志是同一条，那么只需要获取编辑器Console窗口多出来的那些日志
 					else
 						return 0;   // 第一条日志不相同，说明编辑器Console窗口日志已经清空过一次了，需要重新获取全部日志列表
 				}
@@ -1117,6 +1120,7 @@ public class LogConsoleWindow : EditorWindow
 
 	private void FetchLogEntriesFromUnityConsole(int startIndex)
 	{
+		//int count = (int)UnityInternal.getCountMethod.Invoke(null, null);
 		int unityConsoleLogCount = (int)UnityInternal.startGettingEntriesMethod.Invoke(null, null);
 		object[] parameter = new object[] { 0, 0, "" };
 		for (int i = startIndex; i < unityConsoleLogCount; ++i)

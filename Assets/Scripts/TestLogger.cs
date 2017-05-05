@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using UnityEditor;
+//using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -23,7 +23,12 @@ namespace Test
 			//t.anisoLevel = 1;
 			Debug.logger.logEnabled = true;
 			Debug.logger.filterLogType = LogType.Log;
-			t2d = (Texture2D)EditorGUIUtility.IconContent("AssetLabelIcon").image;
+			//t2d = (Texture2D)EditorGUIUtility.IconContent("AssetLabelIcon").image;
+
+			System.Reflection.Assembly assem = typeof(UnityEngine.EventSystems.EventSystem).Assembly;
+			Debug.Log(assem.ToString());
+
+			//Debug.Log(PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone));
 		}
 
 		// Update is called once per frame
@@ -36,8 +41,8 @@ namespace Test
 		private void OnGUI()
 		{
 			string tb = "ToolbarButton";
-			s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("SearchTextField");
-			s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryInfo");
+			//s = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("SearchTextField");
+			//s1 = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("CN EntryInfo");
 			if (GUI.Button(new Rect(10, 10, 400, 200), "Print Log"))
 			{
 				Debug.Log("Test Unity Log");

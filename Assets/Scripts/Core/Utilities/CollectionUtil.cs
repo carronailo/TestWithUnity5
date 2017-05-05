@@ -23,7 +23,7 @@ public static class CollectionUtil
 		}
 	}
 
-	public static void AddIntoTable<K, V>(K key, V value, Dictionary<K, List<V>> table)
+	public static void AddIntoTable<K, V>(K key, V value, Dictionary<K, List<V>> table, bool exclusive = false)
 	{
 		List<V> tmpList;
 		if (!table.TryGetValue(key, out tmpList))
@@ -31,10 +31,11 @@ public static class CollectionUtil
 			tmpList = new List<V>();
 			table.Add(key, tmpList);
 		}
-		tmpList.Add(value);
+		if(!exclusive || !tmpList.Contains(value))
+			tmpList.Add(value);
 	}
 
-	public static void AddIntoTable<K, V>(K key, V value, Dictionary<K, List<V>> table, int capacity)
+	public static void AddIntoTable<K, V>(K key, V value, Dictionary<K, List<V>> table, int capacity, bool exclusive = false)
 	{
 		List<V> tmpList;
 		if (!table.TryGetValue(key, out tmpList))
@@ -42,7 +43,8 @@ public static class CollectionUtil
 			tmpList = new List<V>(capacity);
 			table.Add(key, tmpList);
 		}
-		tmpList.Add(value);
+		if (!exclusive || !tmpList.Contains(value))
+			tmpList.Add(value);
 	}
 
 	public static void AddIntoTable<K, V>(K key, IEnumerable<V> values, Dictionary<K, List<V>> table)

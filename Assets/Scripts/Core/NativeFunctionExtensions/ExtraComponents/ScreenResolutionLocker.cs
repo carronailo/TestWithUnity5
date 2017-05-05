@@ -11,6 +11,8 @@ public class ScreenResolutionLocker : MonoBehaviour
 	public bool useResolutionLimit = true;
 	[Header("显示刷新帧率将会强制置为此值，实际刷新帧率将不会高于此值：")]
 	public int targetFrameRate = 60;
+	[Header("是否强制物理帧率跟显示帧率保持同步：")]
+	public bool forceSyncPhysicsFrameRate = false;
 	public bool debug = false;
 
 	private void Awake()
@@ -54,12 +56,14 @@ public class ScreenResolutionLocker : MonoBehaviour
 		if (!useFrameRateLimit && Application.targetFrameRate != -1)
 		{
 			Application.targetFrameRate = -1;
-			Time.fixedDeltaTime = 1f / 60;
+			if (forceSyncPhysicsFrameRate)
+				Time.fixedDeltaTime = 1f / 60;
 		}
 		else if(useFrameRateLimit && Application.targetFrameRate != targetFrameRate)
 		{
 			Application.targetFrameRate = targetFrameRate;
-			Time.fixedDeltaTime = 1f / targetFrameRate;
+			if (forceSyncPhysicsFrameRate)
+				Time.fixedDeltaTime = 1f / targetFrameRate;
 		}
 	}
 
@@ -102,12 +106,14 @@ public class ScreenResolutionLocker : MonoBehaviour
 			if (useFrameRateLimit)
 			{
 				Screen.SetResolution(width, height, Screen.fullScreen, targetFrameRate);
-				Time.fixedDeltaTime = 1f / targetFrameRate;
+				if(forceSyncPhysicsFrameRate)
+					Time.fixedDeltaTime = 1f / targetFrameRate;
 			}
 			else
 			{
 				Screen.SetResolution(width, height, Screen.fullScreen);
-				Time.fixedDeltaTime = 1f / 60;
+				if (forceSyncPhysicsFrameRate)
+					Time.fixedDeltaTime = 1f / 60;
 			}
 			//Message.Send(new ScreenResolutionChangedMessage { screenWidth = width, screenHeight = height }).Broadcast();
 		}

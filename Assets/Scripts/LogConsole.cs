@@ -81,9 +81,19 @@ public sealed class LogConsole
 		_Log(LogType.Log, string.Empty, message, null);
 	}
 
+	public static void Log(object message)
+	{
+		_Log(LogType.Log, string.Empty, message.ToString(), null);
+	}
+
 	public static void Log(string tag, string message)
 	{
 		_Log(LogType.Log, tag, message, null);
+	}
+
+	public static void Log(string tag, object message)
+	{
+		_Log(LogType.Log, tag, message.ToString(), null);
 	}
 
 	public static void Log(string message, UnityObject context)
@@ -91,9 +101,19 @@ public sealed class LogConsole
 		_Log(LogType.Log, string.Empty, message, context);
 	}
 
+	public static void Log(object message, UnityObject context)
+	{
+		_Log(LogType.Log, string.Empty, message.ToString(), context);
+	}
+
 	public static void Log(string tag, string message, UnityObject context)
 	{
 		_Log(LogType.Log, tag, message, context);
+	}
+
+	public static void Log(string tag, object message, UnityObject context)
+	{
+		_Log(LogType.Log, tag, message.ToString(), context);
 	}
 
 	public static void LogFormat(string format, params object[] args)
@@ -111,9 +131,19 @@ public sealed class LogConsole
 		_Log(LogType.Warning, string.Empty, message, null);
 	}
 
+	public static void LogWarning(object message)
+	{
+		_Log(LogType.Warning, string.Empty, message.ToString(), null);
+	}
+
 	public static void LogWarning(string tag, string message)
 	{
 		_Log(LogType.Warning, tag, message, null);
+	}
+
+	public static void LogWarning(string tag, object message)
+	{
+		_Log(LogType.Warning, tag, message.ToString(), null);
 	}
 
 	public static void LogWarning(string message, UnityObject context)
@@ -121,9 +151,19 @@ public sealed class LogConsole
 		_Log(LogType.Warning, string.Empty, message, context);
 	}
 
+	public static void LogWarning(object message, UnityObject context)
+	{
+		_Log(LogType.Warning, string.Empty, message.ToString(), context);
+	}
+
 	public static void LogWarning(string tag, string message, UnityObject context)
 	{
 		_Log(LogType.Warning, tag, message, context);
+	}
+
+	public static void LogWarning(string tag, object message, UnityObject context)
+	{
+		_Log(LogType.Warning, tag, message.ToString(), context);
 	}
 
 	public static void LogWarningFormat(string format, params object[] args)
@@ -141,9 +181,19 @@ public sealed class LogConsole
 		_Log(LogType.Error, string.Empty, message, null);
 	}
 
+	public static void LogError(object message)
+	{
+		_Log(LogType.Error, string.Empty, message.ToString(), null);
+	}
+
 	public static void LogError(string tag, string message)
 	{
 		_Log(LogType.Error, tag, message, null);
+	}
+
+	public static void LogError(string tag, object message)
+	{
+		_Log(LogType.Error, tag, message.ToString(), null);
 	}
 
 	public static void LogError(string message, UnityObject context)
@@ -151,9 +201,19 @@ public sealed class LogConsole
 		_Log(LogType.Error, string.Empty, message, context);
 	}
 
+	public static void LogError(object message, UnityObject context)
+	{
+		_Log(LogType.Error, string.Empty, message.ToString(), context);
+	}
+
 	public static void LogError(string tag, string message, UnityObject context)
 	{
 		_Log(LogType.Error, tag, message, context);
+	}
+
+	public static void LogError(string tag, object message, UnityObject context)
+	{
+		_Log(LogType.Error, tag, message.ToString(), context);
 	}
 
 	public static void LogErrorFormat(string format, params object[] args)

@@ -2,7 +2,9 @@
 
 public static class CameraUtil
 {
+	// 使用的前提是摄像机的Tag不能被修改
 	private static Camera mainCamera = null;
+	private static Transform mainCameraTrans = null;
 	public static Camera MainCamera
 	{
 		get
@@ -11,12 +13,25 @@ public static class CameraUtil
 			{
 				GameObject mainCameraGO = GameObject.FindWithTag("MainCamera");
 				if (mainCameraGO != null)
+				{
+					mainCameraTrans = mainCameraGO.transform;
 					mainCamera = mainCameraGO.GetComponent<Camera>();
+				}
 			}
 			return mainCamera;
 		}
 	}
+	public static Transform MainCameraTransfrom
+	{
+		get
+		{
+			if (mainCameraTrans == null && MainCamera != null)
+				mainCameraTrans = MainCamera.transform;
+			return mainCameraTrans;
+		}
+	}
 
+	// 使用的前提是摄像机的Tag不能被修改
 	private static Camera specialCamera = null;
 	public static Camera SpecialCamera
 	{
@@ -32,6 +47,7 @@ public static class CameraUtil
 		}
 	}
 
+	// 使用的前提是摄像机的Tag不能被修改
 	private static Camera uiCamera = null;
 	public static Camera UICamera
 	{
@@ -47,6 +63,7 @@ public static class CameraUtil
 		}
 	}
 
+	// 使用的前提是摄像机的Tag不能被修改
 	private static Camera uiCamera3D = null;
 	public static Camera UICamera3D
 	{
@@ -62,6 +79,7 @@ public static class CameraUtil
 		}
 	}
 
+	// 使用的前提是摄像机的Tag不能被修改
 	private static Camera minimapCamera = null;
 	public static Camera MiniMapCamera
 	{
@@ -80,5 +98,14 @@ public static class CameraUtil
 	public static bool IsOffScreen(this Camera cam, Vector3 screenPos)
 	{
 		return screenPos.x < 0 || screenPos.x > cam.pixelWidth || screenPos.y < 0 || screenPos.y > cam.pixelHeight || screenPos.z < 0f;
+	}
+
+	public static Vector3 GetMainCameraForward()
+	{
+		if(MainCameraTransfrom != null)
+		{
+			return Vector3.Scale(MainCameraTransfrom.eulerAngles, new Vector3(0f, 1f, 1f));
+		}
+		return Vector3.forward;
 	}
 }

@@ -2,18 +2,21 @@
 using UnityEngine;
 
 [CustomEditor(typeof(InputModuleManager))]
-public class InputModuleManagerInspector : Editor
+public class InputModuleManagerInspector : CustomInspector
 {
 	SerializedProperty usedInputModules = null;
 
-	private void OnEnable()
+	public override void OnEnable()
 	{
+		base.OnEnable();
 		usedInputModules = serializedObject.FindProperty("usedInputModules");
 	}
 
 	public override void OnInspectorGUI()
 	{
 		serializedObject.Update();
+
+		DisplayScriptField();
 
 		EditorGUI.BeginChangeCheck();
 		EInputModule usedInputModulesValue = (EInputModule)usedInputModules.intValue;

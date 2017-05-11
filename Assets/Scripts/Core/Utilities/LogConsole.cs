@@ -291,6 +291,7 @@ public sealed class LogConsole
 	// 但是这个Logger在接收到日志的时候一定会转发给Debug，为了能够获取到日志的堆栈信息
 	private Logger logger = null;
 
+
 	private LogConsole()
 	{
 		Init();

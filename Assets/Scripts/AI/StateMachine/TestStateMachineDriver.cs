@@ -28,6 +28,7 @@ public class TestStateMachineDriver : AbstractStateMachineDriver
 		started = true;
 	}
 
+#if UNITY_EDITOR
 	[ContextMenu("Test")]
 	public void Test()
 	{
@@ -43,4 +44,5 @@ public class TestStateMachineDriver : AbstractStateMachineDriver
 		template.allStates.Add(baseState);
 		AssetDatabase.CreateAsset(template, "Assets/State.asset");
 	}
+#endif
 }

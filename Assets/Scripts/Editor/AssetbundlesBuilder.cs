@@ -3,9 +3,17 @@ using UnityEditor;
 using System.Text;
 using Tag = EditorLogTag;
 
-public class AssetbundlesBuilder : AssetPostprocessor
+public class AssetbundlesBuilder
 {
-	[MenuItem("My Tools/Build all assetbundles (default)", priority = 1)]
+	static AssetbundlesBuilder()
+	{
+		EditorApplication.delayCall += () =>
+		{
+			Menu.SetChecked("My Tools/Auto Build On Name Changing", EditorPrefs.GetBool("AutoBuildOnAssetBundleNameChanged"));
+		};
+	}
+
+	[MenuItem("My Tools/Build All Assetbundles (Default)", priority = 1)]
 	public static void BuildAllAssetbundles()
 	{
 		// 确保路径存在
@@ -33,7 +41,7 @@ public class AssetbundlesBuilder : AssetPostprocessor
 #endif
 	}
 
-	[MenuItem("My Tools/Get all assetbundles names", priority = 2)]
+	[MenuItem("My Tools/Get All Assetbundles Names", priority = 2)]
 	public static void GetAllAssetbundlesNames()
 	{
 		string[] abNames = AssetDatabase.GetAllAssetBundleNames();
@@ -43,8 +51,23 @@ public class AssetbundlesBuilder : AssetPostprocessor
 		LogConsole.Log(Tag.Builder, sb.ToString());
 	}
 
-	void OnPostprocessAssetbundleNameChanged(string path, string previous, string next)
+	[MenuItem("My Tools/(toggles)", priority = 10000)]
+	public static void TogglesStartFromHere()
 	{
-		LogConsole.Log(Tag.Builder, string.Format("AB name change [{0}] ({1})>>({2})", path, previous, next));
+	}
+
+	[MenuItem("My Tools/(toggles)", validate = true, priority = 10000)]
+	public static bool TogglesStartFromHereValidate()
+	{
+		return false;
+	}
+
+	[MenuItem("My Tools/Auto Build On Name Changing", priority = 10001)]
+	public static void ToggleAutoBuildOnAssetBundleNameChanged()
+	{
+		bool currentValue = EditorPrefs.GetBool("AutoBuildOnAssetBundleNameChanged");
+		currentValue = !currentValue;
+		EditorPrefs.SetBool("AutoBuildOnAssetBundleNameChanged", currentValue);
+		Menu.SetChecked("My Tools/Auto Build On Name Changing", currentValue);
 	}
 }

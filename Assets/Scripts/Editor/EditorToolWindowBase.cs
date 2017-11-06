@@ -1,9 +1,10 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-public class EditorToolWindowBase : EditorWindow
+public abstract class EditorToolWindowBase : EditorWindow
 {
 	public class MyCoroutine
 	{
@@ -23,11 +24,14 @@ public class EditorToolWindowBase : EditorWindow
 
 	protected static Vector2 defaultWindowSize = new Vector2(500f, 500f);
 
-	protected static void InitWindow()
+	protected static void InitWindow(Type windowDefineType)
 	{
-		CreatewScriptObjectAssetWindow myWindow = GetWindow<CreatewScriptObjectAssetWindow>();
-		myWindow.minSize = defaultWindowSize;
-		myWindow.Init();
+		EditorToolWindowBase myWindow = GetWindow(windowDefineType) as EditorToolWindowBase;
+		if(myWindow != null)
+		{
+			myWindow.minSize = defaultWindowSize;
+			myWindow.Init();
+		}
 	}
 
 	protected Dictionary<string, MyCoroutine> coroutinesTable = new Dictionary<string, MyCoroutine>();

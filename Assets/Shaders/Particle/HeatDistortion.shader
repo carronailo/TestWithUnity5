@@ -1,4 +1,4 @@
-﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
 
 // Upgrade NOTE: replaced 'glstate.matrix.modelview[0]' with 'UNITY_MATRIX_MV'
 // Upgrade NOTE: replaced 'glstate.matrix.mvp' with 'UNITY_MATRIX_MVP'
@@ -76,7 +76,7 @@ Shader "HeatDistortion"
 					//	float3(0,0,1));
 					float viewAngle = dot(normalize(ObjSpaceViewDir(i.vertex)),	i.normal);
 					o.distortion = viewAngle * viewAngle;	// square viewAngle to make the effect fall off stronger
-					float depth = -UnityObjectToViewPos( i.vertex ).z;	// compute vertex depth
+					float depth = -mul( UNITY_MATRIX_MV, i.vertex ).z;	// compute vertex depth
 					o.distortion /= 1+depth;	// scale effect with vertex depth
 					o.distortion *= strength;	// multiply with user controlled strength
 					o.screenPos = o.position; // pass the position to the pixel shader

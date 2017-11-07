@@ -1,4 +1,4 @@
-﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
 
 
 Shader "MADFINGER/Transparent/Blinking GodRays" {
@@ -61,7 +61,7 @@ SubShader {
 		v2f 		o;
 		
 		float		time 			= _Time.y + _BlinkingTimeOffsScale * v.color.b;		
-		float3	viewPos		= UnityObjectToViewPos(v.vertex);
+		float3	viewPos		= mul(UNITY_MATRIX_MV,v.vertex);
 		float		dist			= length(viewPos);
 		float		nfadeout	= saturate(dist / _FadeOutDistNear);
 		float		ffadeout	= 1 - saturate(max(dist - _FadeOutDistFar,0) * 0.2);

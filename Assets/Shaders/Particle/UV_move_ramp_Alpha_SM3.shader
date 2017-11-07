@@ -130,7 +130,8 @@ Shader "ARPG Project/Particles/UV_movie_Ramp_AlphaBlend_SM3" {
                 float2 node_15488 = i.uv0;
                 float4 node_15473 = tex2D(_Mask,TRANSFORM_TEX(node_15488.rg, _Mask));
 /// Final Color:
-                return fixed4(finalColor,(_Color.a*lerp( (node_14478.a+node_14568.a), saturate((node_14478.a*node_14568.a)), _AlphaAddMutiply )*(node_15473.a*lerp(node_15473.rgb,dot(node_15473.rgb,float3(0.3,0.59,0.11)),1.0))*node_15482.a));
+				float a = (_Color.a*lerp((node_14478.a + node_14568.a), saturate((node_14478.a*node_14568.a)), _AlphaAddMutiply)*(node_15473.a*lerp(node_15473.rgb, dot(node_15473.rgb, float3(0.3, 0.59, 0.11)), 1.0))*node_15482.a);
+                return fixed4(finalColor,a);
             }
             ENDCG
         }

@@ -1,7 +1,7 @@
-﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
 
 // 2015.1.15 luoyinan
-// 两张贴图实现的简单河水
+// ������ͼʵ�ֵļ򵥺�ˮ
 
 
 Shader "luoyinan/water_river_simple" {

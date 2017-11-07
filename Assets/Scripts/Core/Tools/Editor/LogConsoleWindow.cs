@@ -191,6 +191,7 @@ public class LogConsoleWindow : EditorWindow
 		public static GUIStyle CountBadge;
 		public static GUIStyle SearchField;
 		public static GUIStyle SearchFieldCancelButton;
+		public static GUIStyle SearchFieldCancelButtonEmpty;
 
 		public static Texture iconInfo;
 		public static Texture iconWarn;
@@ -242,6 +243,7 @@ public class LogConsoleWindow : EditorWindow
 				CountBadge = "CN CountBadge";
 				SearchField = "ToolbarSeachTextField";
 				SearchFieldCancelButton = "ToolbarSeachCancelButton";
+				SearchFieldCancelButtonEmpty = "ToolbarSeachCancelButtonEmpty";
 
 				DirectoryInfo di = new DirectoryInfo(Application.dataPath);
 				FileInfo[] fis = di.GetFiles("LogConsoleWindow.cs", SearchOption.AllDirectories);
@@ -715,15 +717,22 @@ public class LogConsoleWindow : EditorWindow
 			catch { }
 			ReFetchLogEntryDisplayList();
 		}
-		if (GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButton))
+		if(!string.IsNullOrEmpty(searchKeywords))
 		{
-			// 清理搜索结果
-			searchKeywords = string.Empty;
-			searchPattern = null;
-			ReFetchLogEntryDisplayList();
-			needRepaint = true;
-			GUIUtility.hotControl = 0;
-			GUIUtility.keyboardControl = 0;
+			if (GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButton))
+			{
+				// 清理搜索结果
+				searchKeywords = string.Empty;
+				searchPattern = null;
+				ReFetchLogEntryDisplayList();
+				needRepaint = true;
+				GUIUtility.hotControl = 0;
+				GUIUtility.keyboardControl = 0;
+			}
+		}
+		else
+		{
+			GUILayout.Button(string.Empty, StyleConstants.SearchFieldCancelButtonEmpty);
 		}
 		GUILayout.Label("Found:", StyleConstants.MessageStyle, GUILayout.Width(45f));
 		GUILayout.Label(StyleConstants.iconInfoSmall, StyleConstants.MessageStyle);
@@ -737,6 +746,10 @@ public class LogConsoleWindow : EditorWindow
 		GUILayout.Label(StyleConstants.iconExceptionSmall, StyleConstants.MessageStyle);
 		GUILayout.Label((matchExceptionCount > 9999) ? "9999+" : matchExceptionCount.ToString(), StyleConstants.MessageStyle);
 		GUILayout.FlexibleSpace();
+		if (GUILayout.Button("Open Editor Log", StyleConstants.MiniButtonRight))
+		{
+			UnityEditorInternal.InternalEditorUtility.OpenEditorConsole();
+		}
 		if (GUILayout.Button("Dump Log List", StyleConstants.MiniButtonRight))
 		{
 			DumpCurrentLogEntries();
@@ -961,7 +974,7 @@ public class LogConsoleWindow : EditorWindow
 
 	private void DrawSourceCode(StackEntry stackEntry)
 	{
-		if (!string.IsNullOrEmpty(stackEntry.fileName) && (stackEntry.sourceCode == null && stackEntry.sourceCode.Count <= 0))
+		if (!string.IsNullOrEmpty(stackEntry.fileName) && (stackEntry.sourceCode != null && stackEntry.sourceCode.Count <= 0))
 		{
 			ReadSourceCode(stackEntry.fileName, stackEntry.lineNumber, ref stackEntry.sourceCode);
 		}
@@ -1193,7 +1206,7 @@ public class LogConsoleWindow : EditorWindow
 		if (HasMode(entry.mode, EMode.ScriptCompileWarning | EMode.ScriptCompileError))
 		{
 			// [文件相对路径]([行号],[列号]): [错误/警告代码]: [具体错误/警告描述]
-			string[] temp = entry.whole.Split(':');
+			string[] temp = entry.whole.Split(new string[] { ": " }, 3, StringSplitOptions.None);
 			if (temp.Length >= 3)
 			{
 				currentSelectedDetail = string.Format("<color={0}>[{1}]</color> {2}", (entry.type == LogType.Warning) ? "yellow" : "#dd2222ff", temp[1].Trim(), temp[2].Trim());

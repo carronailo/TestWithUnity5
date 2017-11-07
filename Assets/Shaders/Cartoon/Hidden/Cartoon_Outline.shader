@@ -67,7 +67,7 @@ Shader "Hidden/Cartoon_Outline"
 				{
 				#ifdef SMOOTH_Z_ARTEFACTS
 					//Correct Z artefacts
-					float4 pos = UnityObjectToViewPos( v.vertex);
+					float4 pos = mul( UNITY_MATRIX_MV, v.vertex);
 					float3 normal = mul( (float3x3)UNITY_MATRIX_IT_MV, v.normal);
 					normal.z = -0.6;
 				
@@ -82,9 +82,9 @@ Shader "Hidden/Cartoon_Outline"
 				#else
 					#ifdef OUTLINE_CONST_SIZE
 						float dist = distance(_WorldSpaceCameraPos, mul(unity_ObjectToWorld, v.vertex));
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline * dist);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline * dist);
 					#else
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline);
 					#endif
 				#endif
 				
@@ -153,7 +153,7 @@ Shader "Hidden/Cartoon_Outline"
 				{
 				#ifdef SMOOTH_Z_ARTEFACTS
 					//Correct Z artefacts
-					float4 pos = UnityObjectToViewPos( v.vertex);
+					float4 pos = mul( UNITY_MATRIX_MV, v.vertex);
 					float3 normal = mul( (float3x3)UNITY_MATRIX_IT_MV, v.normal);
 					normal.z = -1;
 				
@@ -168,9 +168,9 @@ Shader "Hidden/Cartoon_Outline"
 				#else
 					#ifdef OUTLINE_CONST_SIZE
 						float dist = distance(_WorldSpaceCameraPos, mul(unity_ObjectToWorld, v.vertex));
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline * dist);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline * dist);
 					#else
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline);
 					#endif
 				#endif
 				
@@ -243,7 +243,7 @@ Shader "Hidden/Cartoon_Outline"
 				{
 				#ifdef SMOOTH_Z_ARTEFACTS
 					//Correct Z artefacts
-					float4 pos = UnityObjectToViewPos( v.vertex);
+					float4 pos = mul( UNITY_MATRIX_MV, v.vertex);
 					float3 normal = mul( (float3x3)UNITY_MATRIX_IT_MV, v.normal);
 					normal.z = _ZSmooth;
 				
@@ -258,9 +258,9 @@ Shader "Hidden/Cartoon_Outline"
 				#else
 					#ifdef OUTLINE_CONST_SIZE
 						float dist = distance(_WorldSpaceCameraPos, mul(unity_ObjectToWorld, v.vertex));
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline * dist);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline * dist);
 					#else
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline);
 					#endif
 				#endif
 				
@@ -333,7 +333,7 @@ Shader "Hidden/Cartoon_Outline"
 				{
 				#ifdef SMOOTH_Z_ARTEFACTS
 					//Correct Z artefacts
-					float4 pos = UnityObjectToViewPos( v.vertex);
+					float4 pos = mul( UNITY_MATRIX_MV, v.vertex);
 					float3 normal = mul( (float3x3)UNITY_MATRIX_IT_MV, v.normal);
 					normal.z = _ZSmooth;
 				
@@ -348,9 +348,9 @@ Shader "Hidden/Cartoon_Outline"
 				#else
 					#ifdef OUTLINE_CONST_SIZE
 						float dist = distance(_WorldSpaceCameraPos, mul(unity_ObjectToWorld, v.vertex));
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline * dist);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline * dist);
 					#else
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline);
 					#endif
 				#endif
 				
@@ -424,7 +424,7 @@ Shader "Hidden/Cartoon_Outline"
 				{
 				#ifdef SMOOTH_Z_ARTEFACTS
 					//Correct Z artefacts
-					float4 pos = UnityObjectToViewPos( v.vertex);
+					float4 pos = mul( UNITY_MATRIX_MV, v.vertex);
 					float3 normal = mul( (float3x3)UNITY_MATRIX_IT_MV, v.normal);
 					normal.z = _ZSmooth;
 				
@@ -439,9 +439,9 @@ Shader "Hidden/Cartoon_Outline"
 				#else
 					#ifdef OUTLINE_CONST_SIZE
 						float dist = distance(_WorldSpaceCameraPos, mul(unity_ObjectToWorld, v.vertex));
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline * dist);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline * dist);
 					#else
-						float4 pos = UnityObjectToViewPos( v.vertex + float4(v.normal,0) * _Outline);
+						float4 pos = mul( UNITY_MATRIX_MV, v.vertex + float4(v.normal,0) * _Outline);
 					#endif
 				#endif
 				

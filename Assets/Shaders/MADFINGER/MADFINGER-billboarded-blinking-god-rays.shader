@@ -1,4 +1,4 @@
-﻿// Upgrade NOTE: replaced '_World2Object' with 'unity_WorldToObject'
+// Upgrade NOTE: replaced '_World2Object' with 'unity_WorldToObject'
 // Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
 
 
@@ -98,7 +98,7 @@ SubShader {
 		// cheap view space billboarding
 		float3	centerOffs		= float3(float(0.5).xx - v.color.rg,0) * v.texcoord1.xyy;
 		float3	BBCenter		= v.vertex + centerOffs.xyz;	
-		float3	viewPos			= UnityObjectToViewPos(float4(BBCenter,1)) - centerOffs;
+		float3	viewPos			= mul(UNITY_MATRIX_MV,float4(BBCenter,1)) - centerOffs;
 		#else
 		
 		float3	centerOffs		= float3(float(0.5).xx - v.color.rg,0) * v.texcoord1.xyy;

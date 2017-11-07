@@ -63,10 +63,10 @@ Shader "TAShaders/Frozen"
         void CameraViewReflect (inout appdata_full v, out Input o) 
         {
             UNITY_INITIALIZE_OUTPUT(Input,o);
-            half4 pos = UnityObjectToViewPos(v.vertex);
+            half4 pos = mul(UNITY_MATRIX_MV,v.vertex);
 
             half3 i = half3(0,0,0) - pos.xyz;
-            half3 x = UnityObjectToViewPos(v.normal);
+            half3 x = mul((float3x3)UNITY_MATRIX_MV, v.normal);
             half3 n = normalize(reflect(i, x));
 
             o.nv = float4(n, abs(dot(n, x)));
@@ -84,7 +84,7 @@ Shader "TAShaders/Frozen"
             IN.uv_NoiseTex.y += ((offsetColor1.g - offsetColor1.b) - 1) * _NoisePower;
                       
             fixed4 NoiseTexCol = tex2Dproj( _NoiseTex, UNITY_PROJ_COORD(half4(IN.uv_NoiseTex.xy, IN.nv.xw)));
-            NoiseTexCol.xyz *= _ReflColor.rgb;
+            NoiseTexCol.xyz *= _ReflColor;
 
             fixed rim = 1.0 - saturate(dot(normalize(IN.viewDir), o.Normal));
             fixed3 rimCol = pow(rim,_RimPower) * _RimLevel * MainTexCol.xyz * _ReflColor;            

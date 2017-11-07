@@ -50,6 +50,7 @@ public class AssetbundlesBuilder
 		foreach(string abName in abNames)
 			sb.AppendLine(abName);
 		LogConsole.Log(Tag.Builder, sb.ToString());
+		UnityEditorInternal.InternalEditorUtility.OpenEditorConsole();
 	}
 
 	[MenuItem("My Tools/Build All Assetbundles (Custom)", priority = 3)]
@@ -96,12 +97,6 @@ public class AssetbundlesBuilder
 	public static bool TogglesStartFromHereValidate()
 	{
 		return false;
-	}
-
-	[ContextMenu("Test/Test")]
-	public static void TestContextMenu()
-	{
-
 	}
 
 	[MenuItem("My Tools/Auto Build On Name Changing", priority = 10001)]

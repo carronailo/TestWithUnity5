@@ -2,6 +2,7 @@
 using System.Collections;
 using UnityEngine.UI;
 using System.Runtime.InteropServices;
+using UnityEngine.Networking;
 
 public class LoadAssetbundle : MonoBehaviour
 {
@@ -17,34 +18,75 @@ public class LoadAssetbundle : MonoBehaviour
 	public bool instantiateObject = false;
 	public string[] assetbundlePath;
 
+	public AssetBundle ab = null;
+
 	// Use this for initialization
 	IEnumerator Start()
 	{
 		string path = Application.dataPath + "/../AssetBundles/";
 		if(useEditorOnly)
 			path = Application.dataPath + "/../AssetBundles_Editor/";
-		foreach (string abPath in assetbundlePath)
+		if(path.Contains("://"))
 		{
-			WWW www = new WWW(path + abPath);
-			while (!www.isDone)
-				yield return null;
-			AssetBundle assetbundle = www.assetBundle;
-			Object[] objs = assetbundle.LoadAllAssets();
-			foreach (Object obj in objs)
+			// if path is a URL, use WWW to load it
+			foreach (string abPath in assetbundlePath)
 			{
-				Debug.Log(obj);
-				if(instantiateObject)
-					Process(obj);
+				using (UnityWebRequest request = UnityWebRequest.GetAssetBundle(path + abPath))
+				{
+					yield return request.Send();
+					AssetBundle assetbundle = DownloadHandlerAssetBundle.GetContent(request);
+					if (assetbundle == null)
+						LogConsole.Log("TestAssetBundle", "Fail to load " + path + abPath);
+					Object[] objs = assetbundle.LoadAllAssets();
+					foreach (Object obj in objs)
+					{
+						Debug.Log(obj);
+						if (instantiateObject)
+							Process(obj);
+					}
+					//assetbundle.Unload(false);
+					//assetbundle = null;
+					if (ab != null)
+						ab.Unload(false);
+					ab = assetbundle;
+				}
+				Resources.UnloadUnusedAssets();
+				Debug.Log("--------------------------------------------------");
 			}
-			assetbundle.Unload(false);
-			assetbundle = null;
-			www.Dispose();
-			www = null;
-			Resources.UnloadUnusedAssets();
-			Debug.Log("--------------------------------------------------");
+		}
+		else
+		{
+			foreach (string abPath in assetbundlePath)
+			{
+				AssetBundleCreateRequest request = AssetBundle.LoadFromFileAsync(path + abPath);
+				yield return request;
+				AssetBundle assetbundle = request.assetBundle;
+				if (assetbundle == null)
+					LogConsole.Log("TestAssetBundle", "Fail to load " + path + abPath);
+				Object[] objs = assetbundle.LoadAllAssets();
+				foreach (Object obj in objs)
+				{
+					Debug.Log(obj);
+					if (instantiateObject)
+						Process(obj);
+				}
+				//assetbundle.Unload(false);
+				//assetbundle = null;
+				if (ab != null)
+					ab.Unload(false);
+				ab = assetbundle;
+				Resources.UnloadUnusedAssets();
+				Debug.Log("--------------------------------------------------");
+			}
 		}
 
 		//InvokeRepeating("OutputKey", 0f, 1f);
+	}
+
+	private void OnDestroy()
+	{
+		if (ab != null)
+			ab.Unload(true);
 	}
 
 	//void OutputKey()

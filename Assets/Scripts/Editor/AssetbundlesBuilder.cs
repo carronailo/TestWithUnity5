@@ -51,6 +51,9 @@ public class AssetbundlesBuilder
 		uint crc;
 		BuildPipeline.GetCRCForAssetBundle(outputPath + "joystick", out crc);
 		LogConsole.Log(Tag.Builder, crc);
+		Hash128 hash;
+		BuildPipeline.GetHashForAssetBundle(outputPath + "joystick", out hash);
+		LogConsole.Log(Tag.Builder, hash.ToString());
 	}
 
 	[MenuItem("My Tools/Get All Assetbundles Names", priority = 2)]
@@ -70,27 +73,30 @@ public class AssetbundlesBuilder
 		// 确保路径存在
 		IOUtil.MakeSurePath(EditorConstants.ASSETBUNDLE_ABSOLUTE_PATH);
 		AssetBundleBuild[] buildMap = new AssetBundleBuild[1];
-		string[] joystickAssets = new string[2];
-		joystickAssets[0] = "Assets/UITexture/Joystick/摇杆_底.png";
-		joystickAssets[1] = "Assets/UITexture/Joystick/摇杆_钮.png";
+		//string[] joystickAssets = new string[2];
+		//joystickAssets[0] = "Assets/UITexture/Joystick/摇杆_底.png";
+		//joystickAssets[1] = "Assets/UITexture/Joystick/摇杆_钮.png";
+		string[] joystickAssets = new string[1];
+		joystickAssets[0] = "Assets/#Project/SFX/Prefab_Finished/new_Action/0_Player/ck";
 		buildMap[0].assetNames = joystickAssets;
-		buildMap[0].assetBundleName = "joystick";
+		buildMap[0].assetBundleName = AssetDatabase.GetImplicitAssetBundleName("Assets/#Project/SFX/Prefab_Finished/new_Action/0_Player/ck");
+		buildMap[0].assetBundleVariant = AssetDatabase.GetImplicitAssetBundleVariantName("Assets/#Project/SFX/Prefab_Finished/new_Action/0_Player/ck");
 #if UNITY_STANDALONE_WIN
 		AssetBundleManifest manifest = null;
 #if USE_64BIT
-		manifest = BuildPipeline.BuildAssetBundles(EditorConstants.ASSETBUNDLE_RELATIVE_PATH, buildMap, BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows64);
+		manifest = BuildPipeline.BuildAssetBundles(EditorConstants.ASSETBUNDLE_RELATIVE_PATH, buildMap, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
 #else
-		manifest = BuildPipeline.BuildAssetBundles(EditorConstants.ASSETBUNDLE_RELATIVE_PATH, buildMap, BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows);
+		manifest = BuildPipeline.BuildAssetBundles(EditorConstants.ASSETBUNDLE_RELATIVE_PATH, buildMap, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows);
 #endif
 		string[] assetbundles = manifest.GetAllAssetBundles();
 		StringBuilder sb = new StringBuilder();
 		foreach (string assetbundle in assetbundles)
 		{
-			sb.AppendLine(manifest.GetAssetBundleHash(assetbundle).ToString());
+			sb.AppendLine(assetbundle + ":" + manifest.GetAssetBundleHash(assetbundle).ToString());
 		}
 		LogConsole.Log(Tag.Builder, sb.ToString());
 		uint crc;
-		BuildPipeline.GetCRCForAssetBundle(EditorConstants.ASSETBUNDLE_RELATIVE_PATH + "joystick", out crc);
+		BuildPipeline.GetCRCForAssetBundle(EditorConstants.ASSETBUNDLE_RELATIVE_PATH + "sfx_ck", out crc);
 		LogConsole.Log(Tag.Builder, crc);
 #elif UNITY_ANDROID
 
